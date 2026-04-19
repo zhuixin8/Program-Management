@@ -1,0 +1,51 @@
+{
+  "name": "activation-code-system",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "predev": "npm run bootstrap:dev",
+    "dev": "next dev",
+    "bootstrap:dev": "tsx scripts/bootstrap-dev.ts",
+    "bootstrap:runtime": "tsx scripts/bootstrap-runtime.ts",
+    "smoke:license-api": "bash ./scripts/smoke-license-api.sh",
+    "build": "node scripts/run-next-with-dist-dir.js build",
+    "start": "node scripts/run-next-with-dist-dir.js start",
+    "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+    "test:coverage": "node --experimental-test-coverage --test-coverage-exclude=\"tests/**\" --test-coverage-lines=90 --test-coverage-branches=85 --test-coverage-functions=90 --import tsx --test \"tests/**/*.test.ts\"",
+    "lint": "next lint",
+    "quality:gate": "npm run lint && npm run test:coverage && npm run build",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:backup": "./scripts/backup-db.sh",
+    "db:backup-simple": "cp prisma/dev.db prisma/dev.db.backup_$(date +%Y%m%d_%H%M%S)",
+    "db:backup-sql": "sqlite3 prisma/dev.db .dump > backup_$(date +%Y%m%d_%H%M%S).sql",
+    "init-admin": "tsx scripts/init-admin.ts",
+    "init-default-admin": "tsx scripts/init-default-admin.ts",
+    "init-system-config": "tsx scripts/init-system-config.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.6.0",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.1.3",
+    "next": "^15.5.15",
+    "prisma": "^5.6.0",
+    "react": "^18",
+    "react-dom": "^18"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
+    "eslint": "^8",
+    "eslint-config-next": "^15.5.15",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0",
+    "tsx": "^4.6.0",
+    "typescript": "^5"
+  }
+}
