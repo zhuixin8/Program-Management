@@ -17,6 +17,7 @@ RUN apt-get update \
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run db:generate && npm run build
+RUN npm prune --omit=dev
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runner
 ENV NODE_ENV=production \
@@ -40,8 +41,7 @@ COPY --from=builder --chown=node:node /app/src ./src
 COPY --from=builder --chown=node:node /app/scripts ./scripts
 COPY --from=builder --chown=node:node /app/prisma ./prisma
 
-RUN chmod +x /app/scripts/docker-entrypoint.sh \
-    && chown -R node:node /app
+RUN chmod +x /app/scripts/docker-entrypoint.sh
 
 EXPOSE 3000
 VOLUME ["/app/data"]
