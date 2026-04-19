@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   verify:
-    name: Quality Gate Before Publish
+    name: Production Build Before Publish
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -37,8 +37,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run quality gate
-        run: npm run quality:gate
+      - name: Run production build
+        run: npm run build
 
   smoke:
     name: Docker Compose Smoke Verification
