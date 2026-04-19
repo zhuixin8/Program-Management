@@ -1,0 +1,180 @@
+# Deployment Guide
+
+This project is a full-stack Next.js license management system. It includes:
+
+- Next.js App Router pages
+- Route Handlers under `/api`
+- Middleware for admin protection
+- Prisma Client
+- SQLite writes for projects, activation codes, audit logs, nonces, rate limits, and sessions
+
+Because of that, deployment choices are not equivalent. A static host can show static pages, but it cannot run the admin backend or License API. A serverless host can run Next.js functions, but the current SQLite file is not a durable database in most serverless environments.
+
+## Recommended Production Target
+
+Use Docker on a VPS, NAS, home server, or any container platform with a persistent volume.
+
+```bash
+cp .env.docker.example .env
+docker compose up -d --build
+```
+
+The SQLite database is stored in the Docker volume:
+
+```text
+activation_manager_data:/app/data
+```
+
+This mode supports the complete system:
+
+- Public homepage
+- API docs
+- Admin login and dashboard
+- Project management
+- Activation code generation
+- License API
+- API signature verification
+- API rate limiting
+- SQLite persistence
+- Audit logs and consumption logs
+
+## Platform Matrix
+
+| Platform | Current project status | Production notes |
+| --- | --- | --- |
+| Docker / VPS | Full support | Recommended for production |
+| Vercel | Builds Next.js, but SQLite is not durable | Use only for preview unless database is migrated |
+| Netlify | Builds Next.js, but SQLite is not durable | Use only for preview unless database is migrated |
+| Cloudflare Pages | Static-only mode does not run this API backend | Use Workers plus database refactor for full-stack deployment |
+| GitHub Pages | Static hosting only | Not suitable for this full-stack system |
+
+## Vercel
+
+Quick import:
+
+```text
+https://vercel.com/new/clone?repository-url=https://github.com/zhuixin8/Program-Management
+```
+
+Suggested settings:
+
+```text
+Framework Preset: Next.js
+Install Command: npm ci
+Build Command: npm run db:generate && npx next build
+Node.js Version: 22.x
+```
+
+Required environment variables:
+
+```env
+JWT_SECRET=replace-with-a-long-random-secret
+ALLOWED_IPS=*
+LICENSE_API_RATE_LIMIT_MAX=120
+LICENSE_API_RATE_LIMIT_WINDOW_SECONDS=60
+```
+
+Important limitation:
+
+Vercel is serverless. The current Prisma datasource is SQLite:
+
+```prisma
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+```
+
+That file is not a durable shared database on Vercel. The deployment can be used to validate the frontend build, but do not use it as the production license server until the database is migrated to a managed database such as Postgres, Neon, Supabase, Turso/libSQL, or another persistent service.
+
+## Netlify
+
+Quick import:
+
+```text
+https://app.netlify.com/start/deploy?repository=https://github.com/zhuixin8/Program-Management
+```
+
+Suggested settings:
+
+```text
+Framework: Next.js
+Build command: npm run db:generate && npx next build
+Publish directory: .next
+Node.js version: 22
+```
+
+Required environment variables:
+
+```env
+JWT_SECRET=replace-with-a-long-random-secret
+ALLOWED_IPS=*
+LICENSE_API_RATE_LIMIT_MAX=120
+LICENSE_API_RATE_LIMIT_WINDOW_SECONDS=60
+```
+
+Important limitation:
+
+Netlify supports modern Next.js through its adapter and can run Route Handlers, but the current SQLite file is still not a production-grade durable database in serverless functions. Use Netlify only as a preview target unless you migrate persistence to an external database.
+
+## Cloudflare Pages
+
+Cloudflare Pages is suitable for static Next.js sites. This project is not static because it needs:
+
+- `/api/admin/*`
+- `/api/license/*`
+- `/api/verify`
+- Prisma Client
+- SQLite writes
+- Middleware authentication
+
+For a static preview, Cloudflare Pages can only host pages that do not depend on the backend. That is not the complete activation manager.
+
+Do not point Cloudflare Pages at the current full-stack project and expect the License API or admin backend to work. A Pages deployment would require a separate static-export branch that removes API routes and database-backed pages, then outputs a static `out` directory.
+
+For a full Cloudflare deployment, use Cloudflare Workers with the Next.js/OpenNext adapter and refactor storage away from local SQLite. Likely storage choices are D1, Hyperdrive plus external SQL, KV, or Durable Objects, depending on the final data model. This is a code change, not a configuration-only deploy.
+
+## GitHub Pages
+
+GitHub Pages hosts static files. It cannot run:
+
+- Next.js API Route Handlers
+- Prisma
+- SQLite writes
+- admin login sessions
+- License API signing and rate limits
+
+So GitHub Pages is only appropriate for a separate static marketing site or static documentation export. It is not appropriate for the full activation-code management system.
+
+If you want a GitHub Pages-only site, create a separate static export that removes server routes and database-backed pages, then publish the generated `out` folder through GitHub Actions.
+
+## What Must Change for Serverless Production
+
+To run the complete product on Vercel, Netlify, or Cloudflare Workers, migrate persistence out of local SQLite:
+
+1. Replace Prisma SQLite datasource with a managed database.
+2. Update `prisma/schema.prisma` provider and connection configuration.
+3. Replace runtime database bootstrap assumptions that create `/app/data/dev.db`.
+4. Use platform environment variables for `DATABASE_URL`, `JWT_SECRET`, and admin IP rules.
+5. Re-test License API signatures, nonce replay prevention, rate limits, admin login, and audit logs.
+
+Until those changes are made, Docker with a persistent volume is the production path.
+
+## Official References
+
+- Vercel Next.js deployment: <https://vercel.com/docs/frameworks/nextjs>
+- Vercel SQLite limitation: <https://vercel.com/guides/is-sqlite-supported-in-vercel>
+- Netlify Next.js support: <https://docs.netlify.com/frameworks/next-js/overview/>
+- Cloudflare Pages Next.js guide: <https://developers.cloudflare.com/pages/framework-guides/nextjs/>
+- Cloudflare Workers Next.js guide: <https://developers.cloudflare.com/workers/frameworks/framework-guides/nextjs/>
+- Next.js static exports: <https://nextjs.org/docs/app/building-your-application/deploying/static-exports>
+- GitHub Pages documentation: <https://docs.github.com/en/pages>
+
+## Minimum Production Checklist
+
+- Replace `JWT_SECRET` with a long random value.
+- Change the default admin password immediately.
+- Set `ALLOWED_IPS` to your real admin source IP or VPN CIDR.
+- Keep License API signing enabled by using project API secrets.
+- Back up the SQLite database regularly if using Docker.
+- Put HTTPS in front of the service.

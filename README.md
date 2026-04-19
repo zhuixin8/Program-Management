@@ -113,6 +113,28 @@ docker logs --tail 80 activation-manager
 
 数据保存在 Docker volume `activation_manager_data` 中。
 
+## 云平台快速部署
+
+这个项目包含管理后台、License API、Prisma 和 SQLite 写入，因此完整生产环境需要一个可持久化写入数据库的运行环境。Docker / VPS / 带持久盘的容器平台是当前最稳妥的部署方式。
+
+也可以把仓库快速导入到 Vercel、Netlify、Cloudflare Pages 或 GitHub Pages，但需要注意平台能力差异：
+
+| 平台 | 适用程度 | 说明 |
+| --- | --- | --- |
+| Vercel | 适合前端预览 / 需要改外部数据库后再生产使用 | Vercel 能零配置运行 Next.js，但当前 SQLite 文件写入不适合 serverless 持久化 |
+| Netlify | 适合前端预览 / 需要改外部数据库后再生产使用 | Netlify 支持 Next.js App Router 和 Route Handlers，但 SQLite 持久化仍需要替换为外部数据库 |
+| Cloudflare Pages | 适合静态页面预览 | Cloudflare Pages 的 Next.js 静态部署不运行本项目的后台 API；全栈部署应走 Cloudflare Workers 并改造数据库 |
+| GitHub Pages | 仅适合静态介绍页 | GitHub Pages 不能运行 Next.js API Route、Prisma 或管理后台服务端逻辑 |
+
+快速导入入口：
+
+- Vercel: `https://vercel.com/new/clone?repository-url=https://github.com/zhuixin8/Program-Management`
+- Netlify: `https://app.netlify.com/start/deploy?repository=https://github.com/zhuixin8/Program-Management`
+- Cloudflare Pages: 在 Cloudflare Dashboard 中选择 Pages -> Create project -> Connect to Git -> 选择本仓库
+- GitHub Pages: 只能发布静态导出内容；当前完整系统不能直接部署到 Pages
+
+详细步骤和限制说明见 [DEPLOYMENT.md](DEPLOYMENT.md)。
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
