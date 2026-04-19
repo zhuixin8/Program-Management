@@ -121,8 +121,8 @@ docker logs --tail 80 activation-manager
 
 | 平台 | 适用程度 | 说明 |
 | --- | --- | --- |
-| Vercel | 适合前端预览 / 需要改外部数据库后再生产使用 | Vercel 能零配置运行 Next.js，但当前 SQLite 文件写入不适合 serverless 持久化 |
-| Netlify | 适合前端预览 / 需要改外部数据库后再生产使用 | Netlify 支持 Next.js App Router 和 Route Handlers，但 SQLite 持久化仍需要替换为外部数据库 |
+| Vercel | 完整支持 | 使用 `vercel-build` 和外部 Postgres，支持后台、API、签名、限速和持久化 |
+| Netlify | 完整支持 | 使用 `netlify-build` 和外部 Postgres，支持后台、API、签名、限速和持久化 |
 | Cloudflare Pages | 适合静态页面预览 | Cloudflare Pages 的 Next.js 静态部署不运行本项目的后台 API；全栈部署应走 Cloudflare Workers 并改造数据库 |
 | GitHub Pages | 仅适合静态介绍页 | GitHub Pages 不能运行 Next.js API Route、Prisma 或管理后台服务端逻辑 |
 
@@ -135,11 +135,26 @@ docker logs --tail 80 activation-manager
 
 详细步骤和限制说明见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
+Vercel / Netlify 必填环境变量：
+
+```env
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
+JWT_SECRET=replace-with-a-long-random-secret
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=replace-with-a-strong-initial-admin-password
+ALLOWED_IPS=*
+```
+
+云端构建会自动执行 Postgres schema 同步和初始数据 seed。默认本地/Docker 仍使用 SQLite，不受云端配置影响。
+
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `JWT_SECRET` | 无 | 生产环境必填，用于签发和校验管理后台 JWT |
+| `DATABASE_URL` | 无 | Vercel / Netlify 使用的 Postgres 连接串 |
+| `ADMIN_USERNAME` | `admin` | 云端首次 seed 时创建的初始管理员用户名 |
+| `ADMIN_PASSWORD` | 无 | 云端首次 seed 时创建的初始管理员密码，生产环境必填 |
 | `PORT` | `3000` | Next.js 服务端口 |
 | `ALLOWED_IPS` | `127.0.0.1,::1` | 管理后台访问白名单，支持 CIDR 和 `*` |
 | `LICENSE_API_RATE_LIMIT_MAX` | `120` | License API 单窗口最大请求数 |

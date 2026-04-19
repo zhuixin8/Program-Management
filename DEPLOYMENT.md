@@ -43,8 +43,8 @@ This mode supports the complete system:
 | Platform | Current project status | Production notes |
 | --- | --- | --- |
 | Docker / VPS | Full support | Recommended for production |
-| Vercel | Builds Next.js, but SQLite is not durable | Use only for preview unless database is migrated |
-| Netlify | Builds Next.js, but SQLite is not durable | Use only for preview unless database is migrated |
+| Vercel | Full support with Postgres | Use `vercel-build` and `DATABASE_URL` |
+| Netlify | Full support with Postgres | Use `netlify-build` and `DATABASE_URL` |
 | Cloudflare Pages | Static-only mode does not run this API backend | Use Workers plus database refactor for full-stack deployment |
 | GitHub Pages | Static hosting only | Not suitable for this full-stack system |
 
@@ -61,31 +61,38 @@ Suggested settings:
 ```text
 Framework Preset: Next.js
 Install Command: npm ci
-Build Command: npm run db:generate && npx next build
+Build Command: npm run vercel-build
 Node.js Version: 22.x
 ```
 
 Required environment variables:
 
 ```env
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
 JWT_SECRET=replace-with-a-long-random-secret
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=replace-with-a-strong-initial-admin-password
 ALLOWED_IPS=*
 LICENSE_API_RATE_LIMIT_MAX=120
 LICENSE_API_RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-Important limitation:
+This repository includes `vercel.json`, so Vercel uses:
 
-Vercel is serverless. The current Prisma datasource is SQLite:
-
-```prisma
-datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
-}
+```bash
+npm run vercel-build
 ```
 
-That file is not a durable shared database on Vercel. The deployment can be used to validate the frontend build, but do not use it as the production license server until the database is migrated to a managed database such as Postgres, Neon, Supabase, Turso/libSQL, or another persistent service.
+That script runs:
+
+```text
+prisma generate --schema prisma/schema.postgres.prisma
+prisma db push --schema prisma/schema.postgres.prisma
+tsx scripts/seed-cloud.ts
+next build
+```
+
+The cloud schema uses Postgres through `DATABASE_URL`. The local SQLite schema remains available for Docker and development.
 
 ## Netlify
 
@@ -99,7 +106,7 @@ Suggested settings:
 
 ```text
 Framework: Next.js
-Build command: npm run db:generate && npx next build
+Build command: npm run netlify-build
 Publish directory: .next
 Node.js version: 22
 ```
@@ -107,15 +114,22 @@ Node.js version: 22
 Required environment variables:
 
 ```env
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
 JWT_SECRET=replace-with-a-long-random-secret
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=replace-with-a-strong-initial-admin-password
 ALLOWED_IPS=*
 LICENSE_API_RATE_LIMIT_MAX=120
 LICENSE_API_RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-Important limitation:
+This repository includes `netlify.toml`, so Netlify uses:
 
-Netlify supports modern Next.js through its adapter and can run Route Handlers, but the current SQLite file is still not a production-grade durable database in serverless functions. Use Netlify only as a preview target unless you migrate persistence to an external database.
+```bash
+npm run netlify-build
+```
+
+That script uses the same Postgres schema and seed flow as Vercel. The local SQLite schema remains available for Docker and development.
 
 ## Cloudflare Pages
 
@@ -150,15 +164,16 @@ If you want a GitHub Pages-only site, create a separate static export that remov
 
 ## What Must Change for Serverless Production
 
-To run the complete product on Vercel, Netlify, or Cloudflare Workers, migrate persistence out of local SQLite:
+Vercel and Netlify now use `prisma/schema.postgres.prisma` and `DATABASE_URL`, so they can run the complete product with a managed Postgres database.
 
-1. Replace Prisma SQLite datasource with a managed database.
-2. Update `prisma/schema.prisma` provider and connection configuration.
-3. Replace runtime database bootstrap assumptions that create `/app/data/dev.db`.
-4. Use platform environment variables for `DATABASE_URL`, `JWT_SECRET`, and admin IP rules.
-5. Re-test License API signatures, nonce replay prevention, rate limits, admin login, and audit logs.
+To run the complete product on Cloudflare Workers, migrate the runtime to Cloudflare-compatible storage:
 
-Until those changes are made, Docker with a persistent volume is the production path.
+1. Add a Cloudflare-compatible database such as D1 or an external SQL connection.
+2. Replace Node-oriented runtime assumptions with Workers-compatible APIs.
+3. Use platform environment variables for `DATABASE_URL`, `JWT_SECRET`, and admin IP rules.
+4. Re-test License API signatures, nonce replay prevention, rate limits, admin login, and audit logs.
+
+Docker with a persistent volume remains the simplest production path for self-hosting.
 
 ## Official References
 
