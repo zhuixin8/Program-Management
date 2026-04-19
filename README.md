@@ -275,14 +275,13 @@ tests                   Node test 单元测试和业务流程测试
 仓库内置两个工作流：
 
 - `Quality Gate`：安装 SQLite 和 Node 依赖后运行 `npm run quality:gate`。
-- `Docker Publish`：质量门禁通过后执行 Docker Compose 冒烟测试，并可推送 Docker Hub 镜像。
+- `Docker Publish`：质量门禁通过后执行 Docker Compose 冒烟测试，并推送 GHCR 镜像 `ghcr.io/zhuixin8/program-management`。
 
-如需启用 Docker Hub 发布，需要在 GitHub 仓库配置：
+主分支会发布 `latest` 标签，同时发布分支、Tag 和 `sha-*` 标签。服务器部署可直接使用：
 
-```text
-secrets.DOCKERHUB_USERNAME
-secrets.DOCKERHUB_TOKEN
-vars.DOCKERHUB_IMAGE_NAME
+```bash
+docker compose --env-file .env.server -f docker-compose.image.yml pull
+docker compose --env-file .env.server -f docker-compose.image.yml up -d
 ```
 
 ## 生产建议
