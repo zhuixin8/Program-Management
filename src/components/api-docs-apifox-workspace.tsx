@@ -316,8 +316,8 @@ export function ApiDocsApifoxWorkspace() {
             桌面客户端激活码接入文档
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-8 text-[#4B5563]">
-            按这个顺序接入：后台准备 projectKey 和 API Secret，客户端保存 machineId，用户输入激活码时
-            activate，程序启动时 status，次数卡真实使用后 consume。
+            推荐按 License v2 接入：后台准备 projectKey 和激活码，客户端生成 machineId 与 Ed25519
+            设备密钥，用户输入激活码时 enroll，随后用短期 token 和设备签名调用 status / consume。
           </p>
           <div className="relative mt-7 aspect-[16/7] w-full overflow-hidden rounded-lg border border-[#E5E7EB]">
             <Image
@@ -335,8 +335,9 @@ export function ApiDocsApifoxWorkspace() {
         <section id="overview" className={docSectionClassName}>
           <h2 className={docTitleClassName}>先看这 3 件事</h2>
           <p className={docTextClassName}>
-            新客户端不用先研究全部接口。先准备接入信息，再让客户端保存稳定 machineId，最后按
-            activate、status、consume 三个接口接入。/api/verify 只给旧版本兼容。
+            新客户端不用再把 API Secret 放进本地程序。先准备项目和激活码，再让客户端保存稳定
+            machineId 与设备私钥，最后按 enroll、challenge、renew、status、consume 五个 v2 接口接入。
+            /api/license/* v1 和 /api/verify 只给旧版本兼容。
           </p>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {apiDocsPageModel.summaryCards.map((card) => (
@@ -361,15 +362,18 @@ export function ApiDocsApifoxWorkspace() {
         <section id="quick-start" className={docSectionClassName}>
           <h2 className={docTitleClassName}>客户端需要准备什么</h2>
           <p className={docTextClassName}>
-            Python 桌面程序通常内置 Base URL、projectKey 和 API Secret。machineId 不要写死，首次运行生成后保存在本机，以后一直复用。
+            Python 桌面程序通常内置 Base URL 和 projectKey，激活码由用户输入。machineId 和 Ed25519
+            私钥首次运行生成后保存在本机，以后一直复用。
           </p>
           <div className="mt-5 overflow-hidden rounded-lg border border-[#E5E7EB]">
             {[
               ['Base URL', 'https://你的域名'],
               ['Content-Type', 'application/json'],
               ['projectKey', '后台项目管理中复制，用来区分不同软件或产品'],
-              ['API Secret', '后台项目管理中复制，用于生成请求签名'],
               ['machineId', '客户端本机生成并持久化，不能每次启动变化'],
+              ['devicePublicKey', 'Ed25519 公钥，enroll 时提交给服务端'],
+              ['device private key', 'Ed25519 私钥，只保存在客户端本机安全存储中'],
+              ['licenseToken', '服务端 enroll / renew 下发的短期 token'],
               ['requestId', 'consume 每次业务动作生成一个，重试时复用同一个'],
             ].map(([label, value]) => (
               <div
@@ -388,17 +392,18 @@ export function ApiDocsApifoxWorkspace() {
         </section>
 
         <section id="signature" className={docSectionClassName}>
-          <h2 className={docTitleClassName}>API Secret 怎么用</h2>
+          <h2 className={docTitleClassName}>License v2 签名怎么用</h2>
           <p className={docTextClassName}>
-            如果项目配置了 API Secret，请求必须带签名头。签名不是授权本身，它只是证明请求按你的客户端规则发出；真正的授权仍由激活码、machineId 绑定、有效期和次数决定。
+            v2 不把 API Secret 放进客户端。客户端用 Ed25519 设备私钥签名请求，服务端用 enroll
+            时登记的设备公钥验证。签名会绑定路径、session、时间戳、nonce、请求体 hash 和 token hash。
           </p>
           <div className="mt-5 overflow-hidden rounded-lg border border-[#E5E7EB]">
             {[
-              ['签名算法', 'HMAC-SHA256，输出 hex 字符串'],
-              ['签名内容', 'POST + 路径 + 时间戳 + nonce + 请求 body 的 SHA256'],
-              ['请求头', 'X-License-Timestamp / X-License-Nonce / X-License-Signature'],
+              ['签名算法', 'Ed25519，输出 base64url 字符串'],
+              ['签名内容', 'LICENSE-V2-PROOF + POST + 路径 + sessionId + 时间戳 + nonce + bodyHash + tokenHash'],
+              ['请求头', 'Authorization / X-License-Session-Id / X-License-Timestamp / X-License-Nonce / X-License-Signature'],
               ['注意', '签名时用的 body 字符串必须和实际发送的 body 完全一致'],
-              ['重放防护', '同一 projectKey 下 nonce 只能使用一次，默认时间窗口前后 5 分钟'],
+              ['重放防护', '同一个 nonce 只能使用一次，默认时间窗口前后 5 分钟'],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -415,7 +420,7 @@ export function ApiDocsApifoxWorkspace() {
           </div>
           <DashboardCodePanel
             panelClassName={`${codePanelClassName} mt-6`}
-            header={<div className="font-semibold text-[#111827]">Python 签名核心代码</div>}
+            header={<div className="font-semibold text-[#111827]">Python v2 签名核心代码</div>}
             action={
               <button
                 type="button"
@@ -463,8 +468,8 @@ export function ApiDocsApifoxWorkspace() {
         <section id="request-fields" className={docSectionClassName}>
           <h2 className={docTitleClassName}>公共请求参数</h2>
           <p className={docTextClassName}>
-            正式接口共用以下字段。projectKey 用于项目隔离，code 是激活码正文，machineId 表示设备，requestId
-            用于 consume 幂等扣次。
+            License v2 接口共用以下字段。projectKey 用于项目隔离，code 是激活码正文，machineId
+            表示设备，devicePublicKey / deviceSignature 用于注册设备，requestId 用于 consume 幂等扣次。
           </p>
           <FieldTable fields={apiDocsPageModel.requestFields} />
         </section>
@@ -489,7 +494,7 @@ export function ApiDocsApifoxWorkspace() {
         <section id="sdk-examples" className={docSectionClassName}>
           <h2 className={docTitleClassName}>可直接参考的代码</h2>
           <p className={docTextClassName}>
-            Python 示例是桌面客户端最小可用接入方式，包含签名、machineId 持久化和三个正式接口。cURL 只用于看请求结构。
+            Python 示例是桌面客户端最小可用接入方式，包含设备密钥、machineId 持久化、token 续租和签名请求。cURL 只用于看请求结构。
           </p>
           <div className="mt-6 space-y-5">
             {apiDocsPageModel.languageSnippets.map((snippet) => (
@@ -527,7 +532,7 @@ export function ApiDocsApifoxWorkspace() {
         <section id="admin-api" className={docSectionClassName}>
           <h2 className={docTitleClassName}>后台需要做什么</h2>
           <p className={docTextClassName}>
-            客户端不要调用后台接口。后台只负责创建项目、复制 projectKey / API Secret、生成激活码、查看绑定和消费日志。
+            客户端不要调用后台接口。后台只负责创建项目、生成激活码、查看 v2 设备和 session、吊销异常设备、封禁客户端版本和查看安全事件。
           </p>
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
             {apiDocsPageModel.adminGroups.map((group) => (

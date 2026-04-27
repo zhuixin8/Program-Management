@@ -7,7 +7,9 @@ test('buildApiDocsPageModel 会返回正式接口、兼容接口与多语言示�
   const model = buildApiDocsPageModel()
 
   assert.equal(model.summaryCards.length, 3)
-  assert.equal(model.endpoints.filter((endpoint) => endpoint.audience === 'recommended').length, 3)
+  assert.equal(model.endpoints.filter((endpoint) => endpoint.audience === 'recommended').length, 5)
+  assert.equal(model.endpoints.some((endpoint) => endpoint.path === '/api/license/v2/enroll'), true)
+  assert.equal(model.endpoints.some((endpoint) => endpoint.path === '/api/license/v2/consume'), true)
   assert.equal(model.endpoints.some((endpoint) => endpoint.path === '/api/verify'), true)
   assert.deepEqual(
     model.languageSnippets.map((snippet) => snippet.key),
@@ -17,7 +19,7 @@ test('buildApiDocsPageModel 会返回正式接口、兼容接口与多语言示�
 
 test('buildApiDocsPageModel 会强调 Python 桌面接入、设备绑定与 consume 幂等', () => {
   const model = buildApiDocsPageModel()
-  const consumeEndpoint = model.endpoints.find((endpoint) => endpoint.key === 'consume')
+  const consumeEndpoint = model.endpoints.find((endpoint) => endpoint.key === 'v2-consume')
   const pythonSnippet = model.languageSnippets.find((snippet) => snippet.key === 'python')
 
   assert.ok(consumeEndpoint)
@@ -30,11 +32,19 @@ test('buildApiDocsPageModel 会强调 Python 桌面接入、设备绑定与 cons
     true,
   )
   assert.equal(
+    model.researchSteps.some((step) => step.description.includes('Ed25519')),
+    true,
+  )
+  assert.equal(
     model.licenseModels.some((modelCard) => modelCard.badge === 'DEVICE'),
     true,
   )
   assert.equal(
-    pythonSnippet?.code.includes('get_machine_id'),
+    pythonSnippet?.code.includes('license_v2_client.py'),
+    true,
+  )
+  assert.equal(
+    model.adminGroups.some((group) => group.title.includes('License v2')),
     true,
   )
 })

@@ -29,7 +29,16 @@ export type ApiFieldDoc = {
 }
 
 export type ApiEndpointDoc = {
-  key: 'activate' | 'status' | 'consume' | 'verify'
+  key:
+    | 'v2-enroll'
+    | 'v2-challenge'
+    | 'v2-renew'
+    | 'v2-status'
+    | 'v2-consume'
+    | 'activate'
+    | 'status'
+    | 'consume'
+    | 'verify'
   title: string
   audience: 'recommended' | 'compat'
   method: 'POST'
@@ -63,21 +72,21 @@ export type AdminEndpointGroup = {
 export function buildApiDocsPageModel() {
   const summaryCards: ApiDocsSummaryCard[] = [
     {
-      label: '先准备这些',
-      value: '3 个值',
-      description: '后台拿到 Base URL、projectKey 和 API Secret；客户端再保存一个稳定 machineId。',
+      label: '推荐接入',
+      value: 'License v2',
+      description: 'Python 客户端不再内置 API Secret；本机生成 Ed25519 设备密钥，服务端只保存公钥。',
       tone: 'sky',
     },
     {
-      label: '正式接入流程',
-      value: '3 个接口',
-      description: '用户输入激活码时 activate，程序启动时 status，真正消耗权益时 consume。',
+      label: '高强度流程',
+      value: '5 个接口',
+      description: 'enroll 绑定设备，challenge / renew 续租短期 token，status / consume 每次请求都签名。',
       tone: 'emerald',
     },
     {
-      label: '旧接口',
-      value: '/api/verify',
-      description: '只给历史客户端兼容。新接入不要再用它，避免“查询状态”和“扣次数”混在一起。',
+      label: '兼容接口',
+      value: 'v1 / verify',
+      description: 'HMAC API Secret 模式只给历史客户端兼容；新 Python 程序优先迁移到 License v2。',
       tone: 'violet',
     },
   ]
@@ -86,38 +95,38 @@ export function buildApiDocsPageModel() {
     {
       step: '01',
       title: '后台创建项目和激活码',
-      description: '在后台项目管理里创建项目，复制 projectKey 和 API Secret，然后生成 TIME 或 COUNT 激活码。',
-      outcome: '客户端只需要这三个值：Base URL、projectKey、API Secret；激活码发给用户输入。',
+      description: '在后台项目管理里创建项目，生成 TIME 或 COUNT 激活码。License v2 客户端只需要 Base URL、projectKey 和用户输入的激活码。',
+      outcome: 'API Secret 不再放进 Python 客户端；密钥信任边界留在服务端。',
     },
     {
       step: '02',
-      title: '客户端保存稳定 machineId',
-      description: 'Python 程序首次运行时生成一个 UUID，保存到本机配置文件或系统钥匙串，以后每次请求都复用。',
-      outcome: '服务端会把激活码绑定到这个设备；换电脑或重装后，会走自助换绑策略。',
+      title: '客户端生成设备密钥和 machineId',
+      description: 'Python 程序首次运行时生成稳定 machineId 和 Ed25519 私钥。私钥保存在系统钥匙串、DPAPI、Keychain 或安全文件存储里。',
+      outcome: '服务端只保存设备公钥；后续请求必须由本机私钥签名。',
     },
     {
       step: '03',
-      title: '用户输入激活码后调用 activate',
-      description: '把 code、machineId、projectKey 发到 /api/license/activate。TIME 从这里开始算有效期，COUNT 这里只绑定设备。',
-      outcome: '激活成功后保存 code 和 machineId；不要在 activate 时扣减次数。',
+      title: '用户输入激活码后调用 enroll',
+      description: '把 code、machineId、projectKey、devicePublicKey 和 deviceSignature 发到 /api/license/v2/enroll。',
+      outcome: '服务端验证设备私钥持有证明，绑定设备并下发短期 licenseToken。',
     },
     {
       step: '04',
-      title: '程序启动时调用 status',
-      description: '用已保存的 code + machineId 调用 /api/license/status，判断 success 和 valid，再决定是否开放付费功能。',
-      outcome: 'status 只查询授权，不扣次数，适合启动检查和授权信息展示。',
+      title: '续租短期 token',
+      description: 'token 快过期时先调用 /api/license/v2/challenge，再用设备私钥签名 challenge 调用 /api/license/v2/renew。',
+      outcome: '短期 token 和设备签名同时存在，复制 token 不能长期绕过授权。',
     },
     {
       step: '05',
-      title: '功能真正完成后调用 consume',
-      description: 'COUNT 次数卡在每次真实使用成功后调用 /api/license/consume，并为这次业务动作生成 requestId。',
-      outcome: '同一个 requestId 重试不会重复扣次；TIME 授权调用 consume 只做有效性校验。',
+      title: '启动检查和扣次都走签名请求',
+      description: '程序启动调用 /api/license/v2/status，COUNT 次数卡真实使用成功后调用 /api/license/v2/consume。',
+      outcome: '每次请求都签名方法、路径、session、时间戳、nonce、请求体 hash 和 token hash，服务端防重放。',
     },
     {
       step: '06',
       title: '在后台日志里排查问题',
-      description: '遇到客户反馈时，用激活码、machineId 或 requestId 在后台消费日志和绑定历史里搜索。',
-      outcome: '可以确认是否已绑定其他设备、是否命中自助换绑、是否重复请求或次数用完。',
+      description: '遇到客户反馈时，用激活码、machineId、sessionId 或安全事件在后台查询。',
+      outcome: '可以确认设备是否被吊销、客户端版本是否被封禁、是否发生签名失败或 nonce 重放。',
     },
   ]
 
@@ -189,6 +198,30 @@ export function buildApiDocsPageModel() {
       required: '仅 consume 推荐',
       description: '每次真实业务动作的唯一 ID。网络重试时复用同一个值，不会重复扣次。',
     },
+    {
+      field: 'devicePublicKey',
+      type: 'string',
+      required: 'v2 enroll 是',
+      description: 'base64url 编码的 32 字节 Ed25519 公钥。服务端保存公钥，客户端保管私钥。',
+    },
+    {
+      field: 'deviceSignature',
+      type: 'string',
+      required: 'v2 enroll 是',
+      description: '客户端用设备私钥签名 enroll canonical message，证明持有对应私钥。',
+    },
+    {
+      field: 'licenseToken',
+      type: 'string',
+      required: 'v2 challenge / signed request 是',
+      description: '服务端下发的短期授权 token。正式请求建议放在 Authorization: Bearer 头里。',
+    },
+    {
+      field: 'sessionId / challengeId / nonce / signature',
+      type: 'string',
+      required: 'v2 renew 是',
+      description: 'challenge / renew 续租流程字段。signature 是设备私钥对服务端 signInput 的 Ed25519 签名。',
+    },
   ]
 
   const responseFields: ApiFieldDoc[] = [
@@ -240,13 +273,191 @@ export function buildApiDocsPageModel() {
       required: 'consume 常用',
       description: 'consume 是否命中 requestId 幂等重放；true 表示没有再次扣次。',
     },
+    {
+      field: 'licenseToken',
+      type: 'string',
+      required: 'v2 enroll / renew 返回',
+      description: 'License v2 短期 token。客户端保存后，status / consume 请求必须同时带 token 和设备签名。',
+    },
+    {
+      field: 'sessionId / deviceId / tokenExpiresAt',
+      type: 'string | number',
+      required: 'v2 常用',
+      description: '服务端会话、设备记录和 token 过期时间，用于续租和后台排查。',
+    },
+    {
+      field: 'signInput',
+      type: 'string',
+      required: 'v2 challenge 返回',
+      description: '服务端生成的一次性 challenge canonical message，客户端直接用设备私钥签名后提交 renew。',
+    },
   ]
 
   const endpoints: ApiEndpointDoc[] = [
     {
+      key: 'v2-enroll',
+      title: 'License v2：设备注册和激活',
+      audience: 'recommended',
+      method: 'POST',
+      path: '/api/license/v2/enroll',
+      summary: '用户第一次输入激活码时调用。客户端提交设备公钥和私钥签名，服务端绑定设备并下发短期 token。',
+      whenToUse: '新 Python 客户端、桌面程序、需要防逆向强化的正式接入都优先使用这个入口。',
+      highlights: [
+        '客户端不需要也不应该内置项目 API Secret。',
+        'deviceSignature 会证明客户端持有 devicePublicKey 对应私钥。',
+        '成功后返回 licenseToken 和 sessionId，后续 status / consume 走签名请求。',
+      ],
+      requestExample: `{
+  "projectKey": "browser-plugin",
+  "code": "A1B2C3D4E5F6G7H8",
+  "machineId": "machine-001",
+  "appVersion": "1.0.0",
+  "devicePublicKey": "base64url-ed25519-public-key",
+  "deviceSignature": "base64url-ed25519-signature"
+}`,
+      responseExample: `{
+  "success": true,
+  "message": "License v2 设备注册成功",
+  "tokenType": "LicenseV2",
+  "licenseToken": "eyJ...",
+  "sessionId": "ls_xxx",
+  "expiresAt": "2026-04-27T13:30:00.000Z",
+  "deviceId": 12,
+  "licenseMode": "COUNT",
+  "remainingCount": 2
+}`,
+    },
+    {
+      key: 'v2-challenge',
+      title: 'License v2：创建续租 challenge',
+      audience: 'recommended',
+      method: 'POST',
+      path: '/api/license/v2/challenge',
+      summary: 'token 快过期时调用，服务端返回一次性 challenge 和 signInput。',
+      whenToUse: '客户端定时续租或启动后发现 token 即将过期时调用。',
+      highlights: [
+        '请求需要 sessionId 和短期 licenseToken。',
+        'licenseToken 可放在 Authorization: Bearer 头，也可放请求体。',
+        '返回的 signInput 不要自己重组，直接用设备私钥签名。',
+      ],
+      requestExample: `{
+  "sessionId": "ls_xxx",
+  "licenseToken": "eyJ..."
+}`,
+      responseExample: `{
+  "success": true,
+  "message": "License v2 challenge 创建成功",
+  "sessionId": "ls_xxx",
+  "challengeId": "lc_xxx",
+  "nonce": "nonce_xxx",
+  "expiresAt": "2026-04-27T12:35:00.000Z",
+  "signInput": "LICENSE-V2-CHALLENGE\\nPOST\\n/api/license/v2/renew\\n..."
+}`,
+    },
+    {
+      key: 'v2-renew',
+      title: 'License v2：续租短期 token',
+      audience: 'recommended',
+      method: 'POST',
+      path: '/api/license/v2/renew',
+      summary: '客户端用设备私钥签名 challenge 后调用，服务端验证通过后刷新 session 和 token。',
+      whenToUse: 'token 过期前续租；推荐在客户端本地缓存 expiresAt，提前几分钟续租。',
+      highlights: [
+        'challenge 只能使用一次，过期或重复提交会被拒绝。',
+        '续租成功后 tokenVersion 会递增，旧 token 立即失效。',
+        '被吊销设备或被封禁版本无法续租。',
+      ],
+      requestExample: `{
+  "sessionId": "ls_xxx",
+  "challengeId": "lc_xxx",
+  "nonce": "nonce_xxx",
+  "signature": "base64url-ed25519-signature"
+}`,
+      responseExample: `{
+  "success": true,
+  "message": "License v2 session 续租成功",
+  "tokenType": "LicenseV2",
+  "licenseToken": "eyJ...",
+  "sessionId": "ls_xxx",
+  "expiresAt": "2026-04-27T14:30:00.000Z",
+  "deviceId": 12,
+  "licenseMode": "COUNT",
+  "remainingCount": 2
+}`,
+    },
+    {
+      key: 'v2-status',
+      title: 'License v2：签名查询授权状态',
+      audience: 'recommended',
+      method: 'POST',
+      path: '/api/license/v2/status',
+      summary: '程序启动或刷新授权页时调用。请求必须带短期 token 和设备私钥签名。',
+      whenToUse: '启动检查、授权信息展示、用户点击刷新授权时调用。',
+      highlights: [
+        '请求头必须带 X-License-Timestamp、X-License-Nonce、X-License-Signature。',
+        '签名会绑定方法、路径、session、请求体 hash 和 token hash。',
+        'nonce 只能使用一次，服务端会拒绝重放请求。',
+      ],
+      requestExample: `POST /api/license/v2/status
+Authorization: Bearer eyJ...
+X-License-Session-Id: ls_xxx
+X-License-Timestamp: 1777280000
+X-License-Nonce: py_xxx
+X-License-Signature: base64url-ed25519-signature
+
+{}`,
+      responseExample: `{
+  "success": true,
+  "message": "获取激活码状态成功",
+  "licenseMode": "COUNT",
+  "remainingCount": 2,
+  "isActivated": true,
+  "valid": true,
+  "sessionId": "ls_xxx",
+  "deviceId": 12,
+  "tokenExpiresAt": "2026-04-27T14:30:00.000Z"
+}`,
+    },
+    {
+      key: 'v2-consume',
+      title: 'License v2：签名扣次 / 校验权益',
+      audience: 'recommended',
+      method: 'POST',
+      path: '/api/license/v2/consume',
+      summary: 'COUNT 授权每次真实使用成功后调用一次；TIME 授权调用它只做有效性校验。',
+      whenToUse: '导出、生成、分析、识别、下载等付费功能真正完成后调用。',
+      highlights: [
+        '请求签名规则与 v2 status 相同。',
+        'COUNT 每次成功 consume 扣 1 次，requestId 支持幂等。',
+        '同一个 requestId 重试不会重复扣次。',
+      ],
+      requestExample: `POST /api/license/v2/consume
+Authorization: Bearer eyJ...
+X-License-Session-Id: ls_xxx
+X-License-Timestamp: 1777280000
+X-License-Nonce: py_xxx
+X-License-Signature: base64url-ed25519-signature
+
+{
+  "requestId": "req-001"
+}`,
+      responseExample: `{
+  "success": true,
+  "message": "激活码验证成功",
+  "licenseMode": "COUNT",
+  "remainingCount": 1,
+  "isActivated": true,
+  "valid": true,
+  "idempotent": false,
+  "sessionId": "ls_xxx",
+  "deviceId": 12,
+  "tokenExpiresAt": "2026-04-27T14:30:00.000Z"
+}`,
+    },
+    {
       key: 'activate',
       title: '1. 激活码绑定设备',
-      audience: 'recommended',
+      audience: 'compat',
       method: 'POST',
       path: '/api/license/activate',
       summary: '用户第一次输入激活码时调用。服务端会把激活码绑定到当前 machineId。',
@@ -279,7 +490,7 @@ export function buildApiDocsPageModel() {
     {
       key: 'status',
       title: '2. 查询授权是否有效',
-      audience: 'recommended',
+      audience: 'compat',
       method: 'POST',
       path: '/api/license/status',
       summary: '检查当前 code + machineId 是否还能使用，并返回剩余次数或过期时间。',
@@ -312,7 +523,7 @@ export function buildApiDocsPageModel() {
     {
       key: 'consume',
       title: '3. 次数卡扣一次',
-      audience: 'recommended',
+      audience: 'compat',
       method: 'POST',
       path: '/api/license/consume',
       summary: 'COUNT 授权每次真实使用成功后调用一次；TIME 授权调用它只做有效性校验。',
@@ -369,164 +580,108 @@ export function buildApiDocsPageModel() {
     },
   ]
 
-  const signatureExample = String.raw`import hashlib
-import hmac
+  const signatureExample = String.raw`import base64
+import hashlib
 import json
+import os
 import time
-import uuid
 
-api_secret = "paste-project-api-secret-here"
-method = "POST"
-path = "/api/license/status"
-payload = {
-    "projectKey": "desktop-app",
-    "code": "A1B2C3D4E5F6G7H8",
-    "machineId": "machine-001",
-}
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+private_key = Ed25519PrivateKey.generate()
+license_token = "eyJ..."
+session_id = "ls_xxx"
+path = "/api/license/v2/status"
+body = json.dumps({}, separators=(",", ":"), ensure_ascii=False)
 timestamp = str(int(time.time()))
-nonce = str(uuid.uuid4())
+nonce = "py_" + base64.urlsafe_b64encode(os.urandom(18)).rstrip(b"=").decode("ascii")
 body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
-canonical = "\n".join([method, path, timestamp, nonce, body_hash])
-signature = hmac.new(
-    api_secret.encode("utf-8"),
-    canonical.encode("utf-8"),
-    hashlib.sha256,
-).hexdigest()
+token_hash = hashlib.sha256(license_token.encode("utf-8")).hexdigest()
+
+canonical = "\n".join([
+    "LICENSE-V2-PROOF",
+    "POST",
+    path,
+    session_id,
+    timestamp,
+    nonce,
+    body_hash,
+    token_hash,
+])
+signature = base64.urlsafe_b64encode(
+    private_key.sign(canonical.encode("utf-8")),
+).rstrip(b"=").decode("ascii")
 
 headers = {
     "Content-Type": "application/json",
+    "Authorization": f"Bearer {license_token}",
+    "X-License-Session-Id": session_id,
     "X-License-Timestamp": timestamp,
     "X-License-Nonce": nonce,
     "X-License-Signature": signature,
-    "X-License-Signature-Version": "v1",
 }`
 
   const languageSnippets: ApiLanguageSnippet[] = [
     {
       key: 'python',
-      label: 'Python 桌面客户端最小示例',
-      description: '适合 PyQt、Tkinter、Flet、命令行工具等 Python 客户端。示例包含 machineId 持久化和 API Secret 签名。',
-      code: String.raw`import hashlib
-import hmac
-import json
-import time
-import uuid
-from pathlib import Path
-from urllib.parse import urlparse
+      label: 'Python License v2 客户端',
+      description: '适合 PyQt、Tkinter、Flet、命令行工具等 Python 客户端。示例不保存 API Secret，而是本机生成 Ed25519 设备私钥。',
+      code: String.raw`# 安装示例依赖
+python -m pip install cryptography keyring
 
-import requests
+# 项目里已提供完整示例：
+# examples/python/license_v2_client.py
 
-BASE_URL = "https://your-domain.com"
-PROJECT_KEY = "desktop-app"
-API_SECRET = "paste-project-api-secret-here"
-APP_NAME = "MyDesktopApp"
+python examples/python/license_v2_client.py demo \
+  --base-url https://mi.gxslgg.cn \
+  --project-key browser-plugin \
+  --code A1B2C3D4E5F6G7H8 \
+  --machine-id machine-001 \
+  --app-version 1.0.0
 
-
-def get_machine_id() -> str:
-    config_dir = Path.home() / ".config" / APP_NAME
-    config_dir.mkdir(parents=True, exist_ok=True)
-    machine_file = config_dir / "machine_id.txt"
-
-    if machine_file.exists():
-        machine_id = machine_file.read_text(encoding="utf-8").strip()
-        if machine_id:
-            return machine_id
-
-    machine_id = "machine-" + str(uuid.uuid4())
-    machine_file.write_text(machine_id, encoding="utf-8")
-    return machine_id
-
-
-def signed_post(path: str, payload: dict) -> dict:
-    url = BASE_URL.rstrip("/") + path
-    body_payload = {"projectKey": PROJECT_KEY, **payload}
-    body = json.dumps(body_payload, separators=(",", ":"), ensure_ascii=False)
-
-    timestamp = str(int(time.time()))
-    nonce = str(uuid.uuid4())
-    body_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
-    canonical = "\n".join(["POST", urlparse(url).path, timestamp, nonce, body_hash])
-    signature = hmac.new(
-        API_SECRET.encode("utf-8"),
-        canonical.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-    response = requests.post(
-        url,
-        data=body.encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "X-License-Timestamp": timestamp,
-            "X-License-Nonce": nonce,
-            "X-License-Signature": signature,
-            "X-License-Signature-Version": "v1",
-        },
-        timeout=10,
-    )
-    return response.json()
-
-
-machine_id = get_machine_id()
-code = input("请输入激活码: ").strip()
-
-activate = signed_post("/api/license/activate", {
-    "code": code,
-    "machineId": machine_id,
-})
-print("activate:", activate)
-
-status = signed_post("/api/license/status", {
-    "code": code,
-    "machineId": machine_id,
-})
-print("status:", status)
-
-consume = signed_post("/api/license/consume", {
-    "code": code,
-    "machineId": machine_id,
-    "requestId": str(uuid.uuid4()),
-})
-print("consume:", consume)`,
+# 真实流程：
+# 1. enroll: 生成 Ed25519 设备密钥，提交公钥和私钥签名
+# 2. challenge + renew: 用设备私钥续租短期 licenseToken
+# 3. status / consume: 每次请求都签名 timestamp、nonce、bodyHash 和 tokenHash`,
     },
     {
       key: 'curl',
-      label: 'cURL 快速看接口',
-      description: '适合临时查看请求体结构。若项目启用了 API Secret，正式请求仍需要带签名头。',
-      code: String.raw`# activate: 用户输入激活码后调用
-curl -X POST "https://your-domain.com/api/license/activate" \
+      label: 'cURL 快速看 v2 结构',
+      description: '适合临时查看请求体结构。v2 的 signature 必须由客户端 Ed25519 私钥生成，正式调用请用 Python 示例或你的客户端代码签名。',
+      code: String.raw`# enroll: 用户输入激活码后调用
+curl -X POST "https://mi.gxslgg.cn/api/license/v2/enroll" \
   -H "Content-Type: application/json" \
   -d '{
-    "projectKey": "desktop-app",
-    "code": "A1B2C3D4E5F6G7H8",
-    "machineId": "machine-001"
-  }'
-
-# status: 程序启动时查询授权
-curl -X POST "https://your-domain.com/api/license/status" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "projectKey": "desktop-app",
-    "code": "A1B2C3D4E5F6G7H8",
-    "machineId": "machine-001"
-  }'
-
-# consume: 次数卡真实使用成功后调用
-curl -X POST "https://your-domain.com/api/license/consume" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "projectKey": "desktop-app",
+    "projectKey": "browser-plugin",
     "code": "A1B2C3D4E5F6G7H8",
     "machineId": "machine-001",
-    "requestId": "req-001"
-  }'`,
+    "appVersion": "1.0.0",
+    "devicePublicKey": "base64url-ed25519-public-key",
+    "deviceSignature": "base64url-ed25519-signature"
+  }'
+
+# challenge: 用 sessionId 和 token 换一次性 signInput
+curl -X POST "https://mi.gxslgg.cn/api/license/v2/challenge" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJ..." \
+  -d '{
+    "sessionId": "ls_xxx"
+  }'
+
+# status / consume: 必须带 token 和设备签名头
+curl -X POST "https://mi.gxslgg.cn/api/license/v2/status" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJ..." \
+  -H "X-License-Session-Id: ls_xxx" \
+  -H "X-License-Timestamp: 1777280000" \
+  -H "X-License-Nonce: py_xxx" \
+  -H "X-License-Signature: base64url-ed25519-signature" \
+  -d '{}'`,
     },
     {
       key: 'sdk',
-      label: 'JavaScript / TypeScript SDK',
-      description: '适合浏览器插件、Electron、Tauri 或 Node 项目。Python 客户端可直接参考上面的签名规则。',
+      label: 'v1 JavaScript / TypeScript SDK（兼容）',
+      description: '只适合仍在使用 HMAC API Secret 的历史 JS / TS 客户端。新 Python 客户端请使用 License v2 示例。',
       code: String.raw`import { createLicenseClient } from '@/lib/license-sdk'
 
 const client = createLicenseClient({
@@ -604,6 +759,37 @@ await client.consume({
           method: 'GET',
           path: '/api/admin/codes/stats',
           description: '查看全局和项目级授权统计。',
+        },
+      ],
+    },
+    {
+      title: 'License v2 安全管理',
+      description: '用于管理设备密钥、短期会话、安全事件和客户端版本封禁。',
+      endpoints: [
+        {
+          method: 'GET',
+          path: '/api/admin/license-v2/devices',
+          description: '分页查看 v2 设备，支持按 projectKey、状态、版本和关键词筛选。',
+        },
+        {
+          method: 'POST',
+          path: '/api/admin/license-v2/devices/{id}/revoke',
+          description: '吊销异常设备，并同步吊销该设备下的活跃 session。',
+        },
+        {
+          method: 'GET',
+          path: '/api/admin/license-v2/sessions',
+          description: '分页查看 v2 短期会话，排查 token 续租和过期问题。',
+        },
+        {
+          method: 'POST',
+          path: '/api/admin/license-v2/client-versions/block',
+          description: '按项目封禁指定客户端版本，用于阻断已破解或存在高风险的版本。',
+        },
+        {
+          method: 'GET',
+          path: '/api/admin/license-v2/security-events',
+          description: '查看签名失败、nonce 重放、版本封禁、设备吊销等安全事件。',
         },
       ],
     },

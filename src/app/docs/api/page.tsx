@@ -8,7 +8,7 @@ import { DocsSearchBox } from '@/components/docs-search-box'
 export const metadata: Metadata = {
   title: '桌面客户端激活码接入文档',
   description:
-    '面向 Python 桌面程序和客户端的激活码接入文档，按后台准备、设备绑定、状态查询和次数扣减说明正式接口。',
+    '面向 Python 桌面程序和客户端的 License v2 激活码接入文档，说明设备密钥、短期 token、状态查询和次数扣减。',
 }
 
 export default function ApiDocsPage() {
@@ -46,8 +46,8 @@ export default function ApiDocsPage() {
             <a className="min-w-max" href="#quick-start">
               准备信息
             </a>
-            <a className="min-w-max" href="#activate">
-              三个接口
+            <a className="min-w-max" href="#v2-enroll">
+              License v2 接口
             </a>
             <a className="min-w-max" href="#sdk-examples">
               Python 示例

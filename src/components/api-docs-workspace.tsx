@@ -186,19 +186,19 @@ export function ApiDocsWorkspace({
           badge: '公开接入文档',
           title: '桌面客户端激活码接入文档',
           description:
-            '按后台准备、设备绑定、状态查询和次数扣减说明正式接口，优先面向 Python 桌面程序接入。',
-          asideTitle: '先按 3 个接口接入',
+            '按 License v2 设备密钥、短期 token、签名状态查询和次数扣减说明正式接口，优先面向 Python 桌面程序接入。',
+          asideTitle: '优先按 License v2 接入',
           asideDescription:
-            '用户输入激活码时 activate，程序启动时 status，次数卡真实使用成功后 consume。',
+            '用户输入激活码时 enroll，token 快过期时 renew，程序启动和次数扣减都走签名请求。',
         }
       : {
           badge: 'API 接入说明',
           title: 'Python 桌面程序接入说明',
           description:
-            '按后台准备 projectKey / API Secret、客户端保存 machineId、activate / status / consume 三个接口来接入。',
-          asideTitle: '不要把后台接口给客户端',
+            '按后台准备 projectKey、客户端生成 machineId 和 Ed25519 设备密钥、License v2 五个接口来接入。',
+          asideTitle: '不要把 API Secret 放进客户端',
           asideDescription:
-            '客户端只调用公开授权接口；后台只用于创建项目、发码、复制 API Secret 和查日志。',
+            '客户端只调用公开授权接口；后台只用于创建项目、发码、吊销设备、封禁版本和查安全事件。',
         }
 
   if (isPublicMode) {
@@ -244,7 +244,7 @@ export function ApiDocsWorkspace({
             <div className="font-mono text-xs font-semibold text-[#0F766E]">OVERVIEW</div>
             <h2 className="mt-3 text-3xl font-semibold text-[#101413]">桌面客户端接入总览</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#52615C]">
-              先在后台创建项目并复制 projectKey / API Secret，再让客户端保存稳定 machineId。用户输入激活码时调用 activate，程序启动时调用 status，次数卡真实使用成功后调用 consume。
+              先在后台创建项目并生成激活码，再让客户端保存稳定 machineId 和设备私钥。用户输入激活码时调用 v2 enroll，随后用短期 token 和设备签名调用 status / consume。
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
               {apiDocsPageModel.summaryCards.map((card) => (
@@ -545,7 +545,7 @@ export function ApiDocsWorkspace({
             <div className="mb-5">
               <h3 className="text-xl font-semibold text-zinc-950">按这条线接入</h3>
               <p className="mt-1 text-sm leading-6 text-zinc-600">
-                先在后台准备 projectKey 和 API Secret，再让客户端保存 machineId，最后按 activate、status、consume 三步完成接入。
+                先在后台准备 projectKey 和激活码，再让客户端生成 machineId 与 Ed25519 设备密钥，最后按 enroll、challenge、renew、status、consume 完成 v2 接入。
               </p>
             </div>
 
