@@ -7,8 +7,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
 
 FROM base AS deps
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 COPY package.json package-lock.json ./
-RUN npm ci --audit=false --fund=false
+RUN npm ci --registry="${NPM_CONFIG_REGISTRY}" --audit=false --fund=false
 
 FROM base AS builder
 RUN apt-get update \
