@@ -6,9 +6,9 @@ import { ApiDocsApifoxWorkspace } from '@/components/api-docs-apifox-workspace'
 import { DocsSearchBox } from '@/components/docs-search-box'
 
 export const metadata: Metadata = {
-  title: 'License API 接入文档',
+  title: '桌面客户端激活码接入文档',
   description:
-    '面向插件和桌面客户端的激活码接入文档，说明 activate、status、consume、verify、请求字段、响应结构和联调回查方式。',
+    '面向 Python 桌面程序和客户端的激活码接入文档，按后台准备、设备绑定、状态查询和次数扣减说明正式接口。',
 }
 
 export default function ApiDocsPage() {
@@ -41,19 +41,19 @@ export default function ApiDocsPage() {
         <div className="border-t border-[#EEF1F4]">
           <div className="mx-auto flex max-w-[1560px] gap-6 overflow-x-auto px-4 py-3 text-sm font-semibold text-[#4B5563] sm:px-6 lg:px-8">
             <a className="min-w-max text-[#111827]" href="#overview">
-              接入文档
+              接入步骤
             </a>
             <a className="min-w-max" href="#quick-start">
-              快速接入
+              准备信息
             </a>
             <a className="min-w-max" href="#activate">
-              接口列表
+              三个接口
             </a>
             <a className="min-w-max" href="#sdk-examples">
-              调用示例
+              Python 示例
             </a>
             <a className="min-w-max" href="#admin-api">
-              后台接口
+              后台准备
             </a>
           </div>
         </div>

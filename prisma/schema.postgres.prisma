@@ -23,6 +23,9 @@ model Project {
   bindingHistories             ActivationCodeBindingHistory[]
   adminAuditLogs               AdminOperationAuditLog[]
   licenseApiNonces             LicenseApiNonce[]
+  licenseDevices               LicenseDevice[]
+  blockedClientVersions        BlockedClientVersion[]
+  licenseSecurityEvents        LicenseSecurityEvent[]
 
   @@map("projects")
 }
@@ -54,6 +57,8 @@ model ActivationCode {
   consumptions                 LicenseConsumption[]
   bindingHistories             ActivationCodeBindingHistory[]
   adminAuditLogs               AdminOperationAuditLog[]
+  licenseDevices               LicenseDevice[]
+  licenseSecurityEvents        LicenseSecurityEvent[]
 
   @@unique([projectId, usedBy], map: "activation_codes_projectId_usedBy_key")
   @@index([projectId], map: "activation_codes_projectId_idx")
@@ -158,6 +163,103 @@ model LicenseApiNonce {
   @@unique([projectId, nonce], map: "license_api_nonces_projectId_nonce_key")
   @@index([createdAt], map: "license_api_nonces_createdAt_idx")
   @@map("license_api_nonces")
+}
+
+model LicenseDevice {
+  id                    Int                    @id @default(autoincrement())
+  projectId             Int
+  project               Project                @relation(fields: [projectId], references: [id])
+  activationCodeId      Int
+  activationCode        ActivationCode         @relation(fields: [activationCodeId], references: [id])
+  machineId             String
+  publicKey             String
+  publicKeyFingerprint  String
+  fingerprintHash       String?
+  appVersion            String?
+  status                String                 @default("ACTIVE")
+  revokedAt             DateTime?
+  lastSeenAt            DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  sessions              LicenseSession[]
+  challenges            LicenseChallenge[]
+  securityEvents        LicenseSecurityEvent[]
+
+  @@unique([projectId, machineId], map: "license_devices_projectId_machineId_key")
+  @@index([activationCodeId, status], map: "license_devices_activationCodeId_status_idx")
+  @@index([publicKeyFingerprint], map: "license_devices_publicKeyFingerprint_idx")
+  @@map("license_devices")
+}
+
+model LicenseSession {
+  id             Int                    @id @default(autoincrement())
+  sessionId      String                 @unique
+  deviceId       Int
+  device         LicenseDevice          @relation(fields: [deviceId], references: [id])
+  status         String                 @default("ACTIVE")
+  tokenVersion   Int                    @default(0)
+  expiresAt      DateTime
+  lastRenewedAt  DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  securityEvents LicenseSecurityEvent[]
+
+  @@index([deviceId, status], map: "license_sessions_deviceId_status_idx")
+  @@index([expiresAt], map: "license_sessions_expiresAt_idx")
+  @@map("license_sessions")
+}
+
+model LicenseChallenge {
+  id          Int           @id @default(autoincrement())
+  challengeId String        @unique
+  deviceId    Int
+  device      LicenseDevice @relation(fields: [deviceId], references: [id])
+  nonce       String        @unique
+  purpose     String        @default("RENEW")
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([deviceId, createdAt], map: "license_challenges_deviceId_createdAt_idx")
+  @@index([expiresAt], map: "license_challenges_expiresAt_idx")
+  @@map("license_challenges")
+}
+
+model BlockedClientVersion {
+  id         Int      @id @default(autoincrement())
+  projectId  Int
+  project    Project  @relation(fields: [projectId], references: [id])
+  appVersion String
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@unique([projectId, appVersion], map: "blocked_client_versions_projectId_appVersion_key")
+  @@index([projectId], map: "blocked_client_versions_projectId_idx")
+  @@map("blocked_client_versions")
+}
+
+model LicenseSecurityEvent {
+  id                Int              @id @default(autoincrement())
+  projectId          Int?
+  project            Project?         @relation(fields: [projectId], references: [id])
+  activationCodeId   Int?
+  activationCode     ActivationCode?  @relation(fields: [activationCodeId], references: [id])
+  deviceId           Int?
+  device             LicenseDevice?   @relation(fields: [deviceId], references: [id])
+  licenseSessionId   Int?
+  licenseSession     LicenseSession?  @relation(fields: [licenseSessionId], references: [id])
+  eventType          String
+  severity           String           @default("INFO")
+  ip                 String?
+  userAgent          String?
+  detailJson         String?
+  createdAt          DateTime         @default(now())
+
+  @@index([projectId, createdAt], map: "license_security_events_projectId_createdAt_idx")
+  @@index([deviceId, createdAt], map: "license_security_events_deviceId_createdAt_idx")
+  @@index([eventType, createdAt], map: "license_security_events_eventType_createdAt_idx")
+  @@map("license_security_events")
 }
 
 model SystemConfig {

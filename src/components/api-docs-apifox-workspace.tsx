@@ -215,10 +215,10 @@ export function ApiDocsApifoxWorkspace() {
   }
 
   const tocItems = [
-    ['#overview', '接口概览'],
-    ['#quick-start', '快速接入'],
-    ['#signature', 'API 签名'],
-    ['#auth-flow', '授权流程'],
+    ['#overview', '接入步骤'],
+    ['#quick-start', '准备信息'],
+    ['#signature', '签名说明'],
+    ['#auth-flow', '完整流程'],
     ['#request-fields', '请求参数'],
     ['#response-fields', '响应结构'],
     ...apiDocsPageModel.endpoints.map((endpoint) => [
@@ -245,16 +245,16 @@ export function ApiDocsApifoxWorkspace() {
                 开始使用
               </div>
               <a className={sidebarLinkClassName} href="#overview">
-                接口概览
+                接入步骤
               </a>
               <a className={sidebarLinkClassName} href="#quick-start">
-                快速接入
+                准备信息
               </a>
               <a className={sidebarLinkClassName} href="#signature">
-                API 签名
+                签名说明
               </a>
               <a className={sidebarLinkClassName} href="#auth-flow">
-                授权流程
+                完整流程
               </a>
             </div>
             <div className="contents lg:block lg:min-w-0">
@@ -313,11 +313,11 @@ export function ApiDocsApifoxWorkspace() {
         <header className="border-b border-[#E5E7EB] pb-9">
           <div className="text-sm text-[#6B7280]">公开文档 / License API</div>
           <h1 className="mt-4 text-4xl font-semibold leading-tight text-[#111827] sm:text-5xl">
-            License API 接入文档
+            桌面客户端激活码接入文档
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-8 text-[#4B5563]">
-            给插件、桌面客户端和联调方使用的公开文档。先确认项目和授权模型，再按 activate、status、consume
-            的顺序接入；历史客户端继续使用 verify 兼容入口。
+            按这个顺序接入：后台准备 projectKey 和 API Secret，客户端保存 machineId，用户输入激活码时
+            activate，程序启动时 status，次数卡真实使用后 consume。
           </p>
           <div className="relative mt-7 aspect-[16/7] w-full overflow-hidden rounded-lg border border-[#E5E7EB]">
             <Image
@@ -333,10 +333,10 @@ export function ApiDocsApifoxWorkspace() {
         </header>
 
         <section id="overview" className={docSectionClassName}>
-          <h2 className={docTitleClassName}>接口概览</h2>
+          <h2 className={docTitleClassName}>先看这 3 件事</h2>
           <p className={docTextClassName}>
-            新客户端使用三段式流程：首次录入激活码调用 activate，启动或展示授权信息调用 status，真实业务发生时调用
-            consume。/api/verify 只保留给旧版本客户端兼容。
+            新客户端不用先研究全部接口。先准备接入信息，再让客户端保存稳定 machineId，最后按
+            activate、status、consume 三个接口接入。/api/verify 只给旧版本兼容。
           </p>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {apiDocsPageModel.summaryCards.map((card) => (
@@ -359,18 +359,18 @@ export function ApiDocsApifoxWorkspace() {
         </section>
 
         <section id="quick-start" className={docSectionClassName}>
-          <h2 className={docTitleClassName}>快速接入</h2>
+          <h2 className={docTitleClassName}>客户端需要准备什么</h2>
           <p className={docTextClassName}>
-            所有接口都使用 HTTP JSON。请求字段兼容 camelCase 和 snake_case；生产环境只需要把 Base URL
-            替换为你的部署地址，并为每台设备保存稳定的 machineId。
+            Python 桌面程序通常内置 Base URL、projectKey 和 API Secret。machineId 不要写死，首次运行生成后保存在本机，以后一直复用。
           </p>
           <div className="mt-5 overflow-hidden rounded-lg border border-[#E5E7EB]">
             {[
-              ['Base URL', 'http://127.0.0.1:3000'],
+              ['Base URL', 'https://你的域名'],
               ['Content-Type', 'application/json'],
-              ['推荐流程', 'activate -> status -> consume'],
-              ['设备标识', 'machineId 需要在客户端本地持久化'],
-              ['幂等键', 'consume 请求建议始终传 requestId'],
+              ['projectKey', '后台项目管理中复制，用来区分不同软件或产品'],
+              ['API Secret', '后台项目管理中复制，用于生成请求签名'],
+              ['machineId', '客户端本机生成并持久化，不能每次启动变化'],
+              ['requestId', 'consume 每次业务动作生成一个，重试时复用同一个'],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -388,19 +388,17 @@ export function ApiDocsApifoxWorkspace() {
         </section>
 
         <section id="signature" className={docSectionClassName}>
-          <h2 className={docTitleClassName}>项目级 API 签名</h2>
+          <h2 className={docTitleClassName}>API Secret 怎么用</h2>
           <p className={docTextClassName}>
-            每个 projectKey 都有独立的 API Secret。正式 License API 请求必须携带
-            X-License-Timestamp、X-License-Nonce、X-License-Signature 和
-            X-License-Signature-Version，服务端会校验时间窗口、签名和 nonce 重放。
+            如果项目配置了 API Secret，请求必须带签名头。签名不是授权本身，它只是证明请求按你的客户端规则发出；真正的授权仍由激活码、machineId 绑定、有效期和次数决定。
           </p>
           <div className="mt-5 overflow-hidden rounded-lg border border-[#E5E7EB]">
             {[
-              ['签名算法', 'HMAC-SHA256 hex'],
-              ['签名串', 'METHOD + "\\n" + PATH + "\\n" + TIMESTAMP + "\\n" + NONCE + "\\n" + SHA256(body)'],
-              ['时间窗口', '默认允许前后 5 分钟'],
-              ['重放防护', '同一 projectKey 下 nonce 只能使用一次'],
-              ['限速', '默认每 IP + projectKey + path 每分钟 120 次，可用环境变量调整'],
+              ['签名算法', 'HMAC-SHA256，输出 hex 字符串'],
+              ['签名内容', 'POST + 路径 + 时间戳 + nonce + 请求 body 的 SHA256'],
+              ['请求头', 'X-License-Timestamp / X-License-Nonce / X-License-Signature'],
+              ['注意', '签名时用的 body 字符串必须和实际发送的 body 完全一致'],
+              ['重放防护', '同一 projectKey 下 nonce 只能使用一次，默认时间窗口前后 5 分钟'],
             ].map(([label, value]) => (
               <div
                 key={label}
@@ -417,7 +415,7 @@ export function ApiDocsApifoxWorkspace() {
           </div>
           <DashboardCodePanel
             panelClassName={`${codePanelClassName} mt-6`}
-            header={<div className="font-semibold text-[#111827]">Node.js 签名示例</div>}
+            header={<div className="font-semibold text-[#111827]">Python 签名核心代码</div>}
             action={
               <button
                 type="button"
@@ -433,10 +431,9 @@ export function ApiDocsApifoxWorkspace() {
         </section>
 
         <section id="auth-flow" className={docSectionClassName}>
-          <h2 className={docTitleClassName}>授权流程</h2>
+          <h2 className={docTitleClassName}>完整接入流程</h2>
           <p className={docTextClassName}>
-            联调前先确认 projectKey、授权模型和测试激活码。完成一次 activate 后，再用同一组 code + machineId
-            查询状态、触发扣次，并在后台消费日志中按 requestId 回查。
+            下面是桌面客户端最常见的接入顺序。照这个流程做，用户换设备、网络重试、次数扣减和后台排查都能对应起来。
           </p>
           <div className="mt-6 space-y-4">
             {apiDocsPageModel.researchSteps.map((step) => (
@@ -490,10 +487,9 @@ export function ApiDocsApifoxWorkspace() {
         ))}
 
         <section id="sdk-examples" className={docSectionClassName}>
-          <h2 className={docTitleClassName}>多语言调用示例</h2>
+          <h2 className={docTitleClassName}>可直接参考的代码</h2>
           <p className={docTextClassName}>
-            示例覆盖 SDK、Python 和 cURL。先用本地服务完成一次 activate / status / consume，再替换 Base URL
-            接入生产环境。
+            Python 示例是桌面客户端最小可用接入方式，包含签名、machineId 持久化和三个正式接口。cURL 只用于看请求结构。
           </p>
           <div className="mt-6 space-y-5">
             {apiDocsPageModel.languageSnippets.map((snippet) => (
@@ -529,9 +525,9 @@ export function ApiDocsApifoxWorkspace() {
         </section>
 
         <section id="admin-api" className={docSectionClassName}>
-          <h2 className={docTitleClassName}>后台联调接口</h2>
+          <h2 className={docTitleClassName}>后台需要做什么</h2>
           <p className={docTextClassName}>
-            后台接口用于项目管理、发码、消费日志和统计导出。它们需要管理员会话，不应直接暴露给插件或桌面客户端。
+            客户端不要调用后台接口。后台只负责创建项目、复制 projectKey / API Secret、生成激活码、查看绑定和消费日志。
           </p>
           <div className="mt-6 grid gap-5 xl:grid-cols-2">
             {apiDocsPageModel.adminGroups.map((group) => (

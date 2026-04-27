@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
 import {
@@ -25,6 +26,17 @@ type LicenseRouteOptions = {
   legacyOnly?: boolean
 }
 
+function isTruthyEnvValue(value: string | undefined) {
+  return /^(1|true|yes|on)$/i.test(value?.trim() || '')
+}
+
+function isLegacyLicenseApiDisabled() {
+  return (
+    isTruthyEnvValue(process.env.LICENSE_V1_API_DISABLED) ||
+    isTruthyEnvValue(process.env.LICENSE_LEGACY_API_DISABLED)
+  )
+}
+
 async function executeLicenseRequest(
   request: Request,
   handler: (params: LicenseApiRequestParams) => Promise<LicenseResult>,
@@ -32,6 +44,18 @@ async function executeLicenseRequest(
   client: PrismaClient = prisma,
 ) {
   try {
+    if (isLegacyLicenseApiDisabled()) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Legacy License API disabled; use License v2.',
+        },
+        {
+          status: 410,
+        },
+      )
+    }
+
     const parsedRequest = await readLicenseApiRequest(request)
     const rateLimitResult = await enforceLicenseApiRateLimit(
       client,

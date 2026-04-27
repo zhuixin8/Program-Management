@@ -11,13 +11,14 @@ test('buildApiDocsPageModel 会返回正式接口、兼容接口与多语言示�
   assert.equal(model.endpoints.some((endpoint) => endpoint.path === '/api/verify'), true)
   assert.deepEqual(
     model.languageSnippets.map((snippet) => snippet.key),
-    ['sdk', 'python', 'curl'],
+    ['python', 'curl', 'sdk'],
   )
 })
 
-test('buildApiDocsPageModel 会强调 consume 幂等与推荐调研路径', () => {
+test('buildApiDocsPageModel 会强调 Python 桌面接入、设备绑定与 consume 幂等', () => {
   const model = buildApiDocsPageModel()
   const consumeEndpoint = model.endpoints.find((endpoint) => endpoint.key === 'consume')
+  const pythonSnippet = model.languageSnippets.find((snippet) => snippet.key === 'python')
 
   assert.ok(consumeEndpoint)
   assert.equal(
@@ -25,7 +26,15 @@ test('buildApiDocsPageModel 会强调 consume 幂等与推荐调研路径', () =
     true,
   )
   assert.equal(
-    model.researchSteps.some((step) => step.title.includes('smoke')),
+    model.researchSteps.some((step) => step.title.includes('machineId')),
+    true,
+  )
+  assert.equal(
+    model.licenseModels.some((modelCard) => modelCard.badge === 'DEVICE'),
+    true,
+  )
+  assert.equal(
+    pythonSnippet?.code.includes('get_machine_id'),
     true,
   )
 })

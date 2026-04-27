@@ -20,3 +20,7 @@ export function isPrismaUniqueConstraintError(error: unknown, fieldNames: string
 
   return expectedFieldNames.length === 1 && target === expectedFieldNames[0]
 }
+
+export function isPrismaForeignKeyConstraintError(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2003'
+}

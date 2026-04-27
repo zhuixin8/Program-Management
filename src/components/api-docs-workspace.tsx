@@ -183,22 +183,22 @@ export function ApiDocsWorkspace({
   const heroContent =
     mode === 'public'
       ? {
-          badge: '公开 API 文档',
-          title: '激活码服务接入工作区',
+          badge: '公开接入文档',
+          title: '桌面客户端激活码接入文档',
           description:
-            '面向插件开发者、客户端、测试同学与合作方统一展示正式接口、授权模型、多语言示例与联调路径。',
-          asideTitle: '无需登录即可查阅',
+            '按后台准备、设备绑定、状态查询和次数扣减说明正式接口，优先面向 Python 桌面程序接入。',
+          asideTitle: '先按 3 个接口接入',
           asideDescription:
-            '推荐先看概览，再按 activate → status → consume 的正式流程完成接入；旧插件仅在兼容场景下继续使用 /api/verify。',
+            '用户输入激活码时 activate，程序启动时 status，次数卡真实使用成功后 consume。',
         }
       : {
-          badge: 'API 接入工作区',
-          title: '插件与客户端接入指南',
+          badge: 'API 接入说明',
+          title: 'Python 桌面程序接入说明',
           description:
-            '把“如何调研 API、如何正式接入、如何用后台核对结果”统一整理成一个可操作页面，减少口口相传和重复答疑。',
-          asideTitle: '推荐正式流程',
+            '按后台准备 projectKey / API Secret、客户端保存 machineId、activate / status / consume 三个接口来接入。',
+          asideTitle: '不要把后台接口给客户端',
           asideDescription:
-            'activate → status → consume；旧插件仅在兼容场景下继续使用 /api/verify。',
+            '客户端只调用公开授权接口；后台只用于创建项目、发码、复制 API Secret 和查日志。',
         }
 
   if (isPublicMode) {
@@ -242,9 +242,9 @@ export function ApiDocsWorkspace({
 
           <section id="overview" className="rounded-lg border border-[#D8E5E0] bg-white p-5 shadow-[0_18px_54px_-48px_rgba(16,20,19,0.36)] sm:p-6">
             <div className="font-mono text-xs font-semibold text-[#0F766E]">OVERVIEW</div>
-            <h2 className="mt-3 text-3xl font-semibold text-[#101413]">REST API 接入总览</h2>
+            <h2 className="mt-3 text-3xl font-semibold text-[#101413]">桌面客户端接入总览</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-[#52615C]">
-              生产接入推荐使用三段式流程：先 activate 绑定设备，再 status 查询授权状态，真实业务发生时 consume 扣次。旧插件可继续使用 /api/verify。
+              先在后台创建项目并复制 projectKey / API Secret，再让客户端保存稳定 machineId。用户输入激活码时调用 activate，程序启动时调用 status，次数卡真实使用成功后调用 consume。
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
               {apiDocsPageModel.summaryCards.map((card) => (
@@ -311,7 +311,7 @@ export function ApiDocsWorkspace({
                   <p className="mt-2 max-w-3xl text-sm leading-7 text-[#52615C]">{endpoint.whenToUse}</p>
                 </div>
                 <button type="button" onClick={() => void copyToClipboard(endpoint.path, '接口路径已复制')} className={docsPublicSecondaryButtonClassName}>
-                  Copy path
+                  复制路径
                 </button>
               </div>
 
@@ -326,14 +326,14 @@ export function ApiDocsWorkspace({
               <div className="mt-6 grid min-w-0 gap-5 xl:grid-cols-2">
                 <DashboardCodePanel
                   panelClassName="min-w-0 rounded-lg border border-[#D8E5E0] bg-white p-4 shadow-none"
-                  header={<div className="font-semibold text-[#101413]">Request body</div>}
+                  header={<div className="font-semibold text-[#101413]">请求示例</div>}
                   action={<button type="button" onClick={() => void copyToClipboard(endpoint.requestExample, '请求示例已复制')} className={inlineActionButtonClassName}>Copy</button>}
                   code={endpoint.requestExample}
                   codeClassName={publicCodeBlockClassName}
                 />
                 <DashboardCodePanel
                   panelClassName="min-w-0 rounded-lg border border-[#D8E5E0] bg-white p-4 shadow-none"
-                  header={<div className="font-semibold text-[#101413]">Response</div>}
+                  header={<div className="font-semibold text-[#101413]">响应示例</div>}
                   action={<button type="button" onClick={() => void copyToClipboard(endpoint.responseExample, '响应示例已复制')} className={inlineActionButtonClassName}>Copy</button>}
                   code={endpoint.responseExample}
                   codeClassName={publicCodeBlockClassName}
@@ -345,7 +345,7 @@ export function ApiDocsWorkspace({
           <section id="sdks" className="space-y-5 scroll-mt-24">
             <div>
               <div className="font-mono text-xs font-semibold text-[#0F766E]">SDK EXAMPLES</div>
-              <h2 className="mt-3 text-3xl font-semibold text-[#101413]">多语言调用示例</h2>
+              <h2 className="mt-3 text-3xl font-semibold text-[#101413]">Python 和调用示例</h2>
             </div>
             {apiDocsPageModel.languageSnippets.map((snippet) => (
               <DashboardCodePanel
@@ -357,7 +357,7 @@ export function ApiDocsWorkspace({
                     <p className="mt-2 text-sm leading-7 text-[#52615C]">{snippet.description}</p>
                   </div>
                 }
-                action={<button type="button" onClick={() => void copyToClipboard(snippet.code, `${snippet.label} 示例已复制`)} className={docsPublicSecondaryButtonClassName}>Copy example</button>}
+                action={<button type="button" onClick={() => void copyToClipboard(snippet.code, `${snippet.label} 示例已复制`)} className={docsPublicSecondaryButtonClassName}>复制示例代码</button>}
                 code={snippet.code}
                 codeClassName={publicCodeBlockClassName}
               />
@@ -367,7 +367,7 @@ export function ApiDocsWorkspace({
           <section id="admin-api" className="scroll-mt-24 space-y-5">
             <div>
               <div className="font-mono text-xs font-semibold text-[#0F766E]">ADMIN API</div>
-              <h2 className="mt-3 text-3xl font-semibold text-[#101413]">后台联调接口</h2>
+              <h2 className="mt-3 text-3xl font-semibold text-[#101413]">后台准备接口</h2>
             </div>
             <div className="grid gap-5 xl:grid-cols-2">
               {apiDocsPageModel.adminGroups.map((group) => (
@@ -391,7 +391,7 @@ export function ApiDocsWorkspace({
             <div className="mt-4 space-y-4 text-sm leading-6 text-[#52615C]">
               <div>
                 <div className="font-semibold text-[#101413]">Base URL</div>
-                <div className="mt-2 break-all rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 font-mono text-xs text-[#101413]">http://127.0.0.1:3000</div>
+                <div className="mt-2 break-all rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 font-mono text-xs text-[#101413]">https://your-domain.com</div>
               </div>
               <div>
                 <div className="font-semibold text-[#101413]">Headers</div>
@@ -543,10 +543,9 @@ export function ApiDocsWorkspace({
         <div className="space-y-6">
           <div className={`${panelClassName} p-6`}>
             <div className="mb-5">
-              <h3 className="text-xl font-semibold text-zinc-950">推荐调研路径</h3>
+              <h3 className="text-xl font-semibold text-zinc-950">按这条线接入</h3>
               <p className="mt-1 text-sm leading-6 text-zinc-600">
-                建议把接口调研理解为一个业务闭环：先准备 projectKey，再绑定、查询、扣次，最后用后台日志和
-                smoke 脚本回证。
+                先在后台准备 projectKey 和 API Secret，再让客户端保存 machineId，最后按 activate、status、consume 三步完成接入。
               </p>
             </div>
 
@@ -601,9 +600,9 @@ export function ApiDocsWorkspace({
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <div className={`${panelClassName} p-6`}>
               <div className="mb-5">
-                <h3 className="text-xl font-semibold text-zinc-950">通用请求字段</h3>
+                <h3 className="text-xl font-semibold text-zinc-950">客户端请求字段</h3>
                 <p className="mt-1 text-sm leading-6 text-zinc-600">
-                  正式接口支持 camelCase / snake_case 双写法，便于不同语言和历史客户端接入。
+                  桌面客户端重点传 projectKey、code、machineId；次数卡扣减时再传 requestId。
                 </p>
               </div>
               <DashboardTableContainer className={tableContainerClassName}>
@@ -642,9 +641,9 @@ export function ApiDocsWorkspace({
 
             <div className={`${panelClassName} p-6`}>
               <div className="mb-5">
-                <h3 className="text-xl font-semibold text-zinc-950">统一响应字段</h3>
+                <h3 className="text-xl font-semibold text-zinc-950">客户端响应字段</h3>
                 <p className="mt-1 text-sm leading-6 text-zinc-600">
-                  正式接口会同时返回 camelCase 与 snake_case，便于浏览器插件、桌面端和脚本工具统一接入。
+                  客户端先判断 success 和 valid，再读取 remainingCount、expiresAt 或 idempotent 等业务字段。
                 </p>
               </div>
               <DashboardTableContainer className={tableContainerClassName}>
@@ -700,8 +699,8 @@ export function ApiDocsWorkspace({
                       className={`rounded-md border px-3 py-1 text-xs font-semibold ${audienceBadgeClassNameMap[endpoint.audience]}`}
                     >
                       {endpoint.audience === 'recommended'
-                        ? '推荐正式接口'
-                        : '兼容旧接口'}
+                        ? '正式接口'
+                        : '旧接口'}
                     </span>
                   </div>
                   <h3 className="mt-4 text-xl font-semibold text-zinc-950">
@@ -711,7 +710,7 @@ export function ApiDocsWorkspace({
                     {endpoint.summary}
                   </p>
                   <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm leading-6 text-zinc-700">
-                    <span className="font-medium text-zinc-950">适用时机：</span>{' '}
+                    <span className="font-medium text-zinc-950">什么时候调用：</span>{' '}
                     {endpoint.whenToUse}
                   </div>
                 </div>
@@ -751,7 +750,7 @@ export function ApiDocsWorkspace({
                           请求示例
                         </div>
                         <div className="mt-1 text-sm text-zinc-600">
-                          可直接用于 Postman、脚本或插件侧联调。
+                          可直接用于 Postman、脚本或客户端联调。
                         </div>
                       </div>
                     }
@@ -845,10 +844,10 @@ export function ApiDocsWorkspace({
           <div className={`${panelClassName} p-6`}>
             <div className="mb-5">
               <h3 className="text-xl font-semibold text-zinc-950">
-                联调时常用的后台接口
+                后台需要准备什么
               </h3>
               <p className="mt-1 text-sm leading-6 text-zinc-600">
-                当你需要生成测试码、核对 requestId、导出日志或确认项目是否启用时，可直接参考这些管理接口。
+                这些接口是后台自己用的管理接口。客户端不要调用它们，客户端只需要公开授权接口。
               </p>
             </div>
 
@@ -868,10 +867,10 @@ export function ApiDocsWorkspace({
           <div className={`${panelClassName} p-6`}>
             <div className="mb-5">
               <h3 className="text-xl font-semibold text-zinc-950">
-                本地联调与排查辅助
+                排查和本地验证
               </h3>
               <p className="mt-1 text-sm leading-6 text-zinc-600">
-                除了接口本身，建议同时把 smoke 脚本、SDK 源码和完整文档路径暴露给接入者，降低沟通成本。
+                遇到客户反馈时，优先用后台日志核对激活码、machineId、requestId，再用烟雾测试确认接口链路。
               </p>
             </div>
 

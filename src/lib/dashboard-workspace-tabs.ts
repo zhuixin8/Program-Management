@@ -76,25 +76,25 @@ export const apiDocsWorkspaceTabs: Array<WorkspaceTab<ApiDocsWorkspaceTab>> = [
     key: 'overview',
     label: '接入概览',
     shortLabel: '概览',
-    description: '先看调研路径、授权模型与字段规范',
+    description: '先看后台准备、machineId、设备绑定和字段规范',
   },
   {
     key: 'endpoints',
     label: '正式接口',
     shortLabel: '接口',
-    description: '逐个查看 activate / status / consume / verify',
+    description: '逐个查看 activate / status / consume，verify 仅兼容旧客户端',
   },
   {
     key: 'examples',
-    label: '多语言示例',
-    shortLabel: '示例',
-    description: '按 JS/TS、Python、cURL 查看调用方式',
+    label: 'Python 示例',
+    shortLabel: 'Python',
+    description: '优先参考 Python 签名示例，cURL 和 JS SDK 放在后面',
   },
   {
     key: 'admin',
-    label: '联调后台',
+    label: '后台准备',
     shortLabel: '后台',
-    description: '结合管理接口、日志和 smoke 脚本完成联调',
+    description: '创建项目、复制 API Secret、发码和查看日志',
   },
 ]
 
