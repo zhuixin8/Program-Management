@@ -8,7 +8,7 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --audit=false --fund=false
 
 FROM base AS builder
 RUN apt-get update \
