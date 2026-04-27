@@ -178,6 +178,7 @@ class LicenseV2Client:
         project_key: str,
         machine_id: str,
         app_version: str | None,
+        fingerprint_hash: str | None,
         key_store: DeviceKeyStore,
         timeout: float = 10,
     ) -> None:
@@ -185,6 +186,7 @@ class LicenseV2Client:
         self.project_key = project_key or "default"
         self.machine_id = machine_id
         self.app_version = app_version
+        self.fingerprint_hash = fingerprint_hash
         self.private_key = key_store.load_or_create()
         self.timeout = timeout
         self.session: LicenseSession | None = None
@@ -207,6 +209,7 @@ class LicenseV2Client:
                     "code": code,
                     "machineId": self.machine_id,
                     "appVersion": self.app_version,
+                    "fingerprintHash": self.fingerprint_hash,
                     "devicePublicKey": device_public_key,
                     "deviceSignature": self.sign_text(
                         self.build_enroll_message(code, device_public_key),
@@ -222,7 +225,12 @@ class LicenseV2Client:
         assert self.session is not None
         return self._post_json(
             "/api/license/v2/challenge",
-            {"sessionId": self.session.sessionId},
+            compact(
+                {
+                    "sessionId": self.session.sessionId,
+                    "fingerprintHash": self.fingerprint_hash,
+                },
+            ),
             headers={"Authorization": f"Bearer {self.session.licenseToken}"},
         )
 
@@ -236,18 +244,27 @@ class LicenseV2Client:
                 "challengeId": challenge["challengeId"],
                 "nonce": challenge["nonce"],
                 "signature": signature,
+                "fingerprintHash": self.fingerprint_hash,
             },
         )
         self._set_session_from_response(response)
         return response
 
     def status(self) -> dict[str, Any]:
-        return self.signed_post("/api/license/v2/status", {})
+        return self.signed_post(
+            "/api/license/v2/status",
+            compact({"fingerprintHash": self.fingerprint_hash}),
+        )
 
     def consume(self, request_id: str | None = None) -> dict[str, Any]:
         return self.signed_post(
             "/api/license/v2/consume",
-            compact({"requestId": request_id or f"py_{uuid.uuid4().hex}"}),
+            compact(
+                {
+                    "requestId": request_id or f"py_{uuid.uuid4().hex}",
+                    "fingerprintHash": self.fingerprint_hash,
+                },
+            ),
         )
 
     def offline_status(self, public_key: str | None = None) -> dict[str, Any]:
@@ -256,10 +273,13 @@ class LicenseV2Client:
         if not self.session.offlineLicense:
             raise LicenseV2Error("No offlineLicense saved in the current session.")
 
-        return verify_offline_license(
+        payload = verify_offline_license(
             self.session.offlineLicense,
             public_key or self.session.offlineLicensePublicKey,
         )
+        if self.fingerprint_hash and payload.get("fingerprintHash") != self.fingerprint_hash:
+            raise LicenseV2Error("offline license fingerprintHash does not match this device.")
+        return payload
 
     def signed_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_session()
@@ -307,7 +327,7 @@ class LicenseV2Client:
                 self.machine_id,
                 self.app_version or "",
                 device_public_key,
-                "",
+                self.fingerprint_hash or "",
             ],
         )
 
@@ -462,6 +482,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.getenv("LICENSE_V2_MACHINE_ID", socket.gethostname()),
     )
     parser.add_argument("--app-version", default=os.getenv("LICENSE_V2_APP_VERSION", "1.0.0"))
+    parser.add_argument("--fingerprint-hash", default=os.getenv("LICENSE_V2_FINGERPRINT_HASH"))
     parser.add_argument("--state-file", default=os.getenv("LICENSE_V2_STATE_FILE"))
     parser.add_argument("--key-file", default=os.getenv("LICENSE_V2_KEY_FILE"))
     parser.add_argument("--request-id", default=os.getenv("LICENSE_V2_REQUEST_ID"))
@@ -491,6 +512,7 @@ def create_client(args: argparse.Namespace) -> tuple[LicenseV2Client, Path]:
             project_key=args.project_key,
             machine_id=args.machine_id,
             app_version=args.app_version,
+            fingerprint_hash=args.fingerprint_hash,
             key_store=key_store,
             timeout=args.timeout,
         ),

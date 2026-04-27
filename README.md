@@ -20,6 +20,7 @@
 - Next.js `15.5.15`，完整 `npm audit` 为 0 vulnerabilities。
 - License v2 客户端本机生成 Ed25519 设备密钥，服务端保存公钥，客户端不再内置项目 `apiSecret`。
 - License v2 请求校验短期 token、timestamp、nonce、body hash、token hash 和设备签名，防止复制 token 与重放。
+- License v2 可绑定 `fingerprintHash`。一旦设备绑定了指纹，后续 `status`、`consume`、`challenge`、`renew` 缺失或漂移都会被拒绝并记录安全事件。
 - 项目创建时自动生成 License v2 离线签名 key pair；服务端用项目私钥签发 `offlineLicense`，客户端用项目公钥验证短期弱网宽限状态。
 - 旧版项目仍支持独立 `apiSecret` 和 HMAC-SHA256 请求签名，仅建议用于历史客户端兼容。
 - License API 默认按 `IP + projectKey + path` 每分钟限速 120 次。
@@ -260,6 +261,7 @@ License v2 核心接口：
 | `projectKey` / `project_key` | 项目标识，不传时使用 `default` |
 | `code` | 激活码正文 |
 | `machineId` / `machine_id` | 客户端稳定设备标识 |
+| `fingerprintHash` / `fingerprint_hash` | 可选但推荐的设备指纹 hash；一旦绑定，后续 v2 请求必须携带相同值 |
 | `requestId` / `request_id` | `consume` 幂等键，建议每次业务动作都传 |
 
 更多字段和示例请打开 `/docs/api`。

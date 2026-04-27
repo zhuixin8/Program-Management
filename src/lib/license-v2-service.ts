@@ -52,6 +52,8 @@ export type LicenseV2EnrollInput = {
 export type LicenseV2ChallengeInput = {
   sessionId?: string
   licenseToken?: string
+  fingerprintHash?: string | null
+  fingerprint_hash?: string | null
 }
 
 export type LicenseV2RenewInput = {
@@ -59,6 +61,8 @@ export type LicenseV2RenewInput = {
   challengeId?: string
   nonce?: string
   signature?: string
+  fingerprintHash?: string | null
+  fingerprint_hash?: string | null
 }
 
 export type LicenseV2ProtectedRequestInput = {
@@ -99,6 +103,52 @@ function normalizeOptionalText(value: unknown) {
 
 function normalizeNullableText(value: unknown) {
   return normalizeOptionalText(value) ?? null
+}
+
+export function readLicenseV2FingerprintHash(input: Record<string, unknown>) {
+  return normalizeOptionalText(input.fingerprintHash) ??
+    normalizeOptionalText(input.fingerprint_hash) ??
+    null
+}
+
+export function evaluateLicenseV2FingerprintBinding(input: {
+  storedFingerprintHash?: string | null
+  requestFingerprintHash?: string | null
+}) {
+  const storedFingerprintHash = normalizeNullableText(input.storedFingerprintHash)
+  const requestFingerprintHash = normalizeNullableText(input.requestFingerprintHash)
+
+  if (storedFingerprintHash && !requestFingerprintHash) {
+    return {
+      ok: false as const,
+      reason: 'missing' as const,
+      eventType: 'FINGERPRINT_HASH_MISSING',
+      message: '设备指纹校验缺失，请升级客户端或重新激活',
+    }
+  }
+
+  if (storedFingerprintHash && storedFingerprintHash !== requestFingerprintHash) {
+    return {
+      ok: false as const,
+      reason: 'drift' as const,
+      eventType: 'FINGERPRINT_DRIFT_DETECTED',
+      message: '设备指纹发生变化，请重新激活或联系管理员',
+    }
+  }
+
+  if (!storedFingerprintHash && requestFingerprintHash) {
+    return {
+      ok: true as const,
+      reason: 'bind' as const,
+      shouldBind: true,
+    }
+  }
+
+  return {
+    ok: true as const,
+    reason: 'matched' as const,
+    shouldBind: false,
+  }
 }
 
 function normalizePositiveInteger(value: string | undefined, fallback: number) {
@@ -163,6 +213,14 @@ function createFailureResult(message: string, status: number): LicenseV2Result {
     message,
     status,
   }
+}
+
+function redactFingerprintHash(value: string | null) {
+  if (!value) {
+    return null
+  }
+
+  return value.length <= 20 ? value : `${value.slice(0, 12)}...${value.slice(-8)}`
 }
 
 function getSessionExpiresAt(now: Date = new Date()) {
@@ -374,6 +432,7 @@ function createLicenseV2OfflineLicenseFields(
     sessionId: session.sessionId,
     machineId: session.device.machineId,
     publicKeyFingerprint: session.device.publicKeyFingerprint,
+    fingerprintHash: session.device.fingerprintHash,
     appVersion: session.device.appVersion,
     tokenVersion: session.tokenVersion,
     licenseMode: session.device.activationCode.licenseMode,
@@ -467,6 +526,66 @@ async function loadActiveLicenseV2Session(
     session,
     result: null,
   }
+}
+
+async function enforceLicenseV2FingerprintHash(
+  client: DbClient,
+  session: LicenseV2SessionRecord,
+  requestFingerprintHash: string | null,
+  metadata?: RequestMetadata,
+) {
+  const evaluation = evaluateLicenseV2FingerprintBinding({
+    storedFingerprintHash: session.device.fingerprintHash,
+    requestFingerprintHash,
+  })
+
+  if (!evaluation.ok) {
+    await recordLicenseV2SecurityEvent(client, {
+      projectId: session.device.projectId,
+      activationCodeId: session.device.activationCodeId,
+      deviceId: session.device.id,
+      licenseSessionId: session.id,
+      eventType: evaluation.eventType,
+      severity: 'WARN',
+      metadata,
+      detail: {
+        reason: evaluation.reason,
+        storedFingerprintHash: redactFingerprintHash(session.device.fingerprintHash),
+        requestFingerprintHash: redactFingerprintHash(requestFingerprintHash),
+      },
+    })
+
+    return createFailureResult(evaluation.message, 403)
+  }
+
+  if (evaluation.shouldBind && requestFingerprintHash) {
+    await client.licenseDevice.update({
+      where: {
+        id: session.device.id,
+      },
+      data: {
+        fingerprintHash: requestFingerprintHash,
+        lastSeenAt: new Date(),
+      },
+    })
+
+    session.device.fingerprintHash = requestFingerprintHash
+
+    await recordLicenseV2SecurityEvent(client, {
+      projectId: session.device.projectId,
+      activationCodeId: session.device.activationCodeId,
+      deviceId: session.device.id,
+      licenseSessionId: session.id,
+      eventType: 'FINGERPRINT_HASH_BOUND',
+      severity: 'INFO',
+      metadata,
+      detail: {
+        requestFingerprintHash: redactFingerprintHash(requestFingerprintHash),
+      },
+    })
+  }
+
+  return null
 }
 
 function isLicenseV2TokenPayloadBoundToSession(
@@ -699,6 +818,7 @@ export async function createLicenseV2Challenge(
 ): Promise<LicenseV2Result> {
   const sessionId = normalizeOptionalText(input.sessionId)
   const licenseToken = normalizeOptionalText(input.licenseToken)
+  const fingerprintHash = readLicenseV2FingerprintHash(input as Record<string, unknown>)
   if (!sessionId || !licenseToken) {
     return createFailureResult('sessionId 和 licenseToken 不能为空', 400)
   }
@@ -716,6 +836,16 @@ export async function createLicenseV2Challenge(
   if (!isLicenseV2TokenPayloadBoundToSession(tokenPayload, session)) {
     await recordLicenseV2TokenSessionMismatch(client, session, tokenPayload, metadata)
     return createFailureResult('License v2 token 与会话不匹配', 401)
+  }
+
+  const fingerprintResult = await enforceLicenseV2FingerprintHash(
+    client,
+    session,
+    fingerprintHash,
+    metadata,
+  )
+  if (fingerprintResult) {
+    return fingerprintResult
   }
 
   const challenge = await client.licenseChallenge.create({
@@ -756,6 +886,7 @@ export async function renewLicenseV2Session(
   const challengeId = normalizeOptionalText(input.challengeId)
   const nonce = normalizeOptionalText(input.nonce)
   const signature = normalizeOptionalText(input.signature)
+  const fingerprintHash = readLicenseV2FingerprintHash(input as Record<string, unknown>)
 
   if (!sessionId || !challengeId || !nonce || !signature) {
     return createFailureResult('sessionId、challengeId、nonce 和 signature 不能为空', 400)
@@ -821,6 +952,16 @@ export async function renewLicenseV2Session(
     })
 
     return createFailureResult('License v2 challenge 签名无效', 401)
+  }
+
+  const fingerprintResult = await enforceLicenseV2FingerprintHash(
+    client,
+    session,
+    fingerprintHash,
+    metadata,
+  )
+  if (fingerprintResult) {
+    return fingerprintResult
   }
 
   const updatedSession = await client.$transaction(async (tx) => {
@@ -1018,6 +1159,19 @@ export async function verifyLicenseV2ProtectedRequest(
     }
 
     throw error
+  }
+
+  const fingerprintResult = await enforceLicenseV2FingerprintHash(
+    client,
+    session,
+    readLicenseV2FingerprintHash(input.body),
+    metadata,
+  )
+  if (fingerprintResult) {
+    return {
+      ok: false as const,
+      result: fingerprintResult,
+    }
   }
 
   await client.licenseDevice.update({

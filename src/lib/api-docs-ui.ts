@@ -99,7 +99,7 @@ export function buildApiDocsPageModel() {
     {
       label: '高强度流程',
       value: '5 个接口',
-      description: 'enroll 绑定设备，challenge / renew 续租短期 token，status / consume 每次请求都签名，可选返回离线签名快照。',
+      description: 'enroll 绑定设备、公钥和指纹，challenge / renew 续租短期 token，status / consume 每次请求都签名。',
       tone: 'emerald',
     },
     {
@@ -120,13 +120,13 @@ export function buildApiDocsPageModel() {
     {
       step: '02',
       title: '客户端生成设备密钥和 machineId',
-      description: 'Python 程序首次运行时生成稳定 machineId 和 Ed25519 私钥。私钥保存在系统钥匙串、DPAPI、Keychain 或安全文件存储里。',
-      outcome: '服务端只保存设备公钥；后续请求必须由本机私钥签名。',
+      description: 'Python 程序首次运行时生成稳定 machineId、设备指纹 hash 和 Ed25519 私钥。私钥保存在系统钥匙串、DPAPI、Keychain 或安全文件存储里。',
+      outcome: '服务端保存设备公钥和 fingerprintHash；后续请求必须由本机私钥签名并携带匹配指纹。',
     },
     {
       step: '03',
       title: '用户输入激活码后调用 enroll',
-      description: '把 code、machineId、projectKey、devicePublicKey 和 deviceSignature 发到 /api/license/v2/enroll。',
+      description: '把 code、machineId、projectKey、fingerprintHash、devicePublicKey 和 deviceSignature 发到 /api/license/v2/enroll。',
       outcome: '服务端验证设备私钥持有证明，绑定设备并下发短期 licenseToken。',
     },
     {
@@ -143,12 +143,18 @@ export function buildApiDocsPageModel() {
     },
     {
       step: '06',
-      title: '在后台日志里排查问题',
-      description: '遇到客户反馈时，用激活码、machineId、sessionId 或安全事件在后台查询。',
-      outcome: '可以确认设备是否被吊销、客户端版本是否被封禁、是否发生签名失败或 nonce 重放。',
+      title: '检测设备指纹漂移',
+      description: 'status、consume、challenge 和 renew 会复核已绑定 fingerprintHash；缺失或变化会拒绝请求并记录安全事件。',
+      outcome: '复制 session、token 或设备私钥到另一台机器时，还会触发 HostID / fingerprint 漂移防护。',
     },
     {
       step: '07',
+      title: '在后台日志里排查问题',
+      description: '遇到客户反馈时，用激活码、machineId、sessionId 或安全事件在后台查询。',
+      outcome: '可以确认设备是否被吊销、客户端版本是否被封禁、是否发生签名失败、nonce 重放或指纹漂移。',
+    },
+    {
+      step: '08',
       title: '可选启用离线签名授权快照',
       description: '新建项目会自动生成项目级 Ed25519 离线签名密钥；老项目启动时会自动补齐。环境变量级密钥仅作为兼容兜底。',
       outcome: '客户端用项目级公钥在短暂断网时验证授权快照，适合弱网宽限和只读状态校验。',
@@ -216,6 +222,12 @@ export function buildApiDocsPageModel() {
       type: 'string',
       required: '是',
       description: '设备唯一标识。必须稳定保存，不能每次启动重新生成。',
+    },
+    {
+      field: 'fingerprintHash / fingerprint_hash',
+      type: 'string',
+      required: 'v2 推荐',
+      description: '客户端本地计算的设备指纹 hash。enroll 后服务端绑定该值，status、consume、challenge、renew 缺失或漂移都会被拒绝并记录安全事件。',
     },
     {
       field: 'requestId / request_id',
@@ -320,7 +332,7 @@ export function buildApiDocsPageModel() {
       field: 'offlineLicense / offlineLicenseExpiresAt / offlineLicensePublicKey',
       type: 'string',
       required: 'v2 可选返回',
-      description: '项目级私钥签发的短期授权快照。正式客户端应固定后台项目里的 offline public key，并校验 projectKey、machineId、有效期和授权状态。',
+      description: '项目级私钥签发的短期授权快照。正式客户端应固定后台项目里的 offline public key，并校验 projectKey、machineId、fingerprintHash、有效期和授权状态。',
     },
   ]
 
@@ -336,6 +348,7 @@ export function buildApiDocsPageModel() {
       highlights: [
         '客户端不需要也不应该内置项目 API Secret。',
         'deviceSignature 会证明客户端持有 devicePublicKey 对应私钥。',
+        'fingerprintHash 会绑定设备硬件/系统指纹，后续请求缺失或漂移会被拒绝。',
         '成功后返回 licenseToken 和 sessionId，后续 status / consume 走签名请求。',
         '项目级离线私钥会签发 offlineLicense，客户端用项目离线公钥验签。',
       ],
@@ -344,6 +357,7 @@ export function buildApiDocsPageModel() {
   "code": "A1B2C3D4E5F6G7H8",
   "machineId": "machine-001",
   "appVersion": "1.0.0",
+  "fingerprintHash": "sha256-of-device-fingerprint",
   "devicePublicKey": "base64url-ed25519-public-key",
   "deviceSignature": "base64url-ed25519-signature"
 }`,
@@ -373,11 +387,13 @@ export function buildApiDocsPageModel() {
       highlights: [
         '请求需要 sessionId 和短期 licenseToken。',
         'licenseToken 可放在 Authorization: Bearer 头，也可放请求体。',
+        '如果设备已绑定 fingerprintHash，challenge 也必须携带匹配指纹。',
         '返回的 signInput 不要自己重组，直接用设备私钥签名。',
       ],
       requestExample: `{
   "sessionId": "ls_xxx",
-  "licenseToken": "eyJ..."
+  "licenseToken": "eyJ...",
+  "fingerprintHash": "sha256-of-device-fingerprint"
 }`,
       responseExample: `{
   "success": true,
@@ -400,6 +416,7 @@ export function buildApiDocsPageModel() {
       highlights: [
         'challenge 只能使用一次，过期或重复提交会被拒绝。',
         '续租成功后 tokenVersion 会递增，旧 token 立即失效。',
+        '已绑定 fingerprintHash 的设备续租时必须提交同一指纹。',
         '被吊销设备或被封禁版本无法续租。',
         '续租成功会用项目级私钥刷新 offlineLicense，让弱网宽限状态保持最新。',
       ],
@@ -407,7 +424,8 @@ export function buildApiDocsPageModel() {
   "sessionId": "ls_xxx",
   "challengeId": "lc_xxx",
   "nonce": "nonce_xxx",
-  "signature": "base64url-ed25519-signature"
+  "signature": "base64url-ed25519-signature",
+  "fingerprintHash": "sha256-of-device-fingerprint"
 }`,
       responseExample: `{
   "success": true,
@@ -435,6 +453,7 @@ export function buildApiDocsPageModel() {
         '请求头必须带 X-License-Timestamp、X-License-Nonce、X-License-Signature。',
         '签名会绑定方法、路径、session、请求体 hash 和 token hash。',
         'nonce 只能使用一次，服务端会拒绝重放请求。',
+        '请求体可携带 fingerprintHash；设备已绑定指纹时该字段必需且必须匹配。',
         '在线 status 成功后可更新本地 offlineLicense。',
       ],
       requestExample: `POST /api/license/v2/status
@@ -444,7 +463,9 @@ X-License-Timestamp: 1777280000
 X-License-Nonce: py_xxx
 X-License-Signature: base64url-ed25519-signature
 
-{}`,
+{
+  "fingerprintHash": "sha256-of-device-fingerprint"
+}`,
       responseExample: `{
   "success": true,
   "message": "获取激活码状态成功",
@@ -469,6 +490,7 @@ X-License-Signature: base64url-ed25519-signature
       whenToUse: '导出、生成、分析、识别、下载等付费功能真正完成后调用。',
       highlights: [
         '请求签名规则与 v2 status 相同。',
+        'fingerprintHash 会参与请求体 hash，防止中间人改写设备指纹字段。',
         'COUNT 每次成功 consume 扣 1 次，requestId 支持幂等。',
         '同一个 requestId 重试不会重复扣次。',
         '离线 license 可缓存最新 remainingCount，但离线状态下不要做可信扣次。',
@@ -481,7 +503,8 @@ X-License-Nonce: py_xxx
 X-License-Signature: base64url-ed25519-signature
 
 {
-  "requestId": "req-001"
+  "requestId": "req-001",
+  "fingerprintHash": "sha256-of-device-fingerprint"
 }`,
       responseExample: `{
   "success": true,
@@ -652,9 +675,9 @@ X-License-Signature: base64url-ed25519-signature
     {
       step: '03',
       phase: '首次激活',
-      clientAction: '用户输入激活码后，客户端用设备私钥签名 enroll canonical message，并提交激活码、machineId、公钥和签名。',
+      clientAction: '用户输入激活码后，客户端用设备私钥签名 enroll canonical message，并提交激活码、machineId、fingerprintHash、公钥和签名。',
       endpoint: 'POST /api/license/v2/enroll',
-      serverAction: '验证 Ed25519 签名、项目和激活码规则，绑定 machineId 与设备公钥，创建短期 session。',
+      serverAction: '验证 Ed25519 签名、项目和激活码规则，绑定 machineId、设备公钥与 fingerprintHash，创建短期 session。',
       successResult: '返回 licenseToken、sessionId、deviceId、expiresAt、licenseMode 和 remainingCount。',
       notes: [
         'enroll 成功后应保存 sessionId、licenseToken 和 expiresAt。',
@@ -664,9 +687,9 @@ X-License-Signature: base64url-ed25519-signature
     {
       step: '04',
       phase: '启动检查',
-      clientAction: '程序启动或打开授权页时，带 Bearer token 和 X-License-* 签名头调用状态查询。',
+      clientAction: '程序启动或打开授权页时，带 Bearer token、fingerprintHash 和 X-License-* 签名头调用状态查询。',
       endpoint: 'POST /api/license/v2/status',
-      serverAction: '校验 token、session、设备状态、客户端版本、时间戳、nonce、防重放和设备签名。',
+      serverAction: '校验 token、session、设备状态、客户端版本、时间戳、nonce、防重放、设备签名和指纹漂移。',
       successResult: '返回 valid、licenseMode、expiresAt、remainingCount、sessionId 和 tokenExpiresAt。',
       notes: [
         '状态查询不会扣减 COUNT 次数。',
@@ -676,7 +699,7 @@ X-License-Signature: base64url-ed25519-signature
     {
       step: '05',
       phase: '功能扣次',
-      clientAction: 'COUNT 次数卡在付费动作真正完成后调用 consume，并传入稳定 requestId；TIME 授权可用 consume 做权益校验。',
+      clientAction: 'COUNT 次数卡在付费动作真正完成后调用 consume，并传入稳定 requestId 和 fingerprintHash；TIME 授权可用 consume 做权益校验。',
       endpoint: 'POST /api/license/v2/consume',
       serverAction: '先完成 v2 签名验证，再进入原有 TIME / COUNT 授权逻辑；COUNT 成功后扣减 remainingCount。',
       successResult: '返回扣次后的 remainingCount、valid 和 idempotent。',
@@ -688,9 +711,9 @@ X-License-Signature: base64url-ed25519-signature
     {
       step: '06',
       phase: '续租 token',
-      clientAction: 'token 快过期时先请求 challenge，再用设备私钥签名服务端返回的 signInput 调用 renew。',
+      clientAction: 'token 快过期时先携带 fingerprintHash 请求 challenge，再用设备私钥签名服务端返回的 signInput 调用 renew。',
       endpoint: 'POST /api/license/v2/challenge -> POST /api/license/v2/renew',
-      serverAction: '校验一次性 challenge、设备签名和 session 状态，通过后递增 tokenVersion 并签发新 token。',
+      serverAction: '校验一次性 challenge、设备签名、session 状态和 fingerprintHash，通过后递增 tokenVersion 并签发新 token。',
       successResult: '返回新的 licenseToken 和 expiresAt；旧 token 立即失效。',
       notes: [
         'challenge 默认只能使用一次，过期或重放都会被拒绝。',
@@ -700,7 +723,7 @@ X-License-Signature: base64url-ed25519-signature
     {
       step: '07',
       phase: '离线宽限',
-      clientAction: '客户端保存服务端返回的 offlineLicense，并用内置 Ed25519 公钥验证签名、有效期、设备和授权信息。',
+      clientAction: '客户端保存服务端返回的 offlineLicense，并用内置 Ed25519 公钥验证签名、有效期、设备指纹和授权信息。',
       endpoint: '响应字段：offlineLicense / offlineLicenseExpiresAt / offlineLicensePublicKey',
       serverAction: '服务端优先用项目级私钥签发短期授权快照；客户端只需要后台项目里的离线公钥。',
       successResult: '短暂断网时可以读取可信授权状态；联网后仍应尽快恢复 status / consume 在线校验。',
@@ -787,13 +810,14 @@ python examples/python/license_v2_client.py demo \
   --project-key browser-plugin \
   --code A1B2C3D4E5F6G7H8 \
   --machine-id machine-001 \
-  --app-version 1.0.0
+  --app-version 1.0.0 \
+  --fingerprint-hash sha256-of-device-fingerprint
 
 # 真实流程：
-# 1. enroll: 生成 Ed25519 设备密钥，提交公钥和私钥签名
-# 2. challenge + renew: 用设备私钥续租短期 licenseToken
-# 3. status / consume: 每次请求都签名 timestamp、nonce、bodyHash 和 tokenHash
-# 4. offline-status: 用后台项目里的离线公钥验证本地 offlineLicense 快照`,
+# 1. enroll: 生成 Ed25519 设备密钥，提交公钥、fingerprintHash 和私钥签名
+# 2. challenge + renew: 用设备私钥续租短期 licenseToken，并复核 fingerprintHash
+# 3. status / consume: 每次请求都签名 timestamp、nonce、bodyHash、tokenHash 和请求体指纹
+# 4. offline-status: 用后台项目里的离线公钥验证本地 offlineLicense 快照和 fingerprintHash`,
     },
     {
       key: 'curl',
@@ -807,6 +831,7 @@ curl -X POST "https://mi.gxslgg.cn/api/license/v2/enroll" \
     "code": "A1B2C3D4E5F6G7H8",
     "machineId": "machine-001",
     "appVersion": "1.0.0",
+    "fingerprintHash": "sha256-of-device-fingerprint",
     "devicePublicKey": "base64url-ed25519-public-key",
     "deviceSignature": "base64url-ed25519-signature"
   }'
@@ -816,7 +841,8 @@ curl -X POST "https://mi.gxslgg.cn/api/license/v2/challenge" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer eyJ..." \
   -d '{
-    "sessionId": "ls_xxx"
+    "sessionId": "ls_xxx",
+    "fingerprintHash": "sha256-of-device-fingerprint"
   }'
 
 # status / consume: 必须带 token 和设备签名头
@@ -827,7 +853,7 @@ curl -X POST "https://mi.gxslgg.cn/api/license/v2/status" \
   -H "X-License-Timestamp: 1777280000" \
   -H "X-License-Nonce: py_xxx" \
   -H "X-License-Signature: base64url-ed25519-signature" \
-  -d '{}'
+  -d '{"fingerprintHash":"sha256-of-device-fingerprint"}'
 
 # 响应可选包含 offlineLicense，客户端用项目级 Ed25519 公钥验签后可做短期断网宽限。`,
     },

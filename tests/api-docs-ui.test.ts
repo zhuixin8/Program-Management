@@ -57,6 +57,14 @@ test('buildApiDocsPageModel 会强调 Python 桌面接入、设备绑定与 cons
     true,
   )
   assert.equal(
+    model.requestFields.some((field) => field.field.includes('fingerprintHash')),
+    true,
+  )
+  assert.equal(
+    model.integrationFlowSteps.some((step) => step.serverAction.includes('指纹漂移')),
+    true,
+  )
+  assert.equal(
     model.licenseModels.some((modelCard) => modelCard.badge === 'DEVICE'),
     true,
   )

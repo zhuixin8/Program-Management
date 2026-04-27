@@ -16,6 +16,7 @@ export type LicenseV2OfflineLicensePayload = {
   sessionId: string
   machineId: string
   publicKeyFingerprint: string
+  fingerprintHash: string | null
   appVersion: string | null
   tokenVersion: number
   licenseMode: string
