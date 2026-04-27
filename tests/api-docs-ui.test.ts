@@ -8,6 +8,11 @@ test('buildApiDocsPageModel 会返回正式接口、兼容接口与多语言示�
 
   assert.equal(model.summaryCards.length, 3)
   assert.equal(model.endpoints.filter((endpoint) => endpoint.audience === 'recommended').length, 5)
+  assert.equal(model.endpointGroups.length, 2)
+  assert.equal(model.endpointGroups[0]?.key, 'license-v2')
+  assert.equal(model.endpointGroups[0]?.endpoints.length, 5)
+  assert.equal(model.endpointGroups[1]?.key, 'license-v1')
+  assert.equal(model.endpointGroups[1]?.endpoints.length, 4)
   assert.equal(model.endpoints.some((endpoint) => endpoint.path === '/api/license/v2/enroll'), true)
   assert.equal(model.endpoints.some((endpoint) => endpoint.path === '/api/license/v2/consume'), true)
   assert.equal(model.endpoints.some((endpoint) => endpoint.path === '/api/verify'), true)
@@ -33,6 +38,14 @@ test('buildApiDocsPageModel 会强调 Python 桌面接入、设备绑定与 cons
   )
   assert.equal(
     model.researchSteps.some((step) => step.description.includes('Ed25519')),
+    true,
+  )
+  assert.equal(
+    model.integrationFlowSteps.some((step) => step.endpoint.includes('/api/license/v2/enroll')),
+    true,
+  )
+  assert.equal(
+    model.integrationFlowSteps.some((step) => step.successResult.includes('licenseToken')),
     true,
   )
   assert.equal(

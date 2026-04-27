@@ -219,13 +219,21 @@ export function ApiDocsWorkspace({
             </div>
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1 text-sm font-semibold lg:mt-4 lg:grid lg:gap-1 lg:overflow-visible lg:pb-0">
               <a className="shrink-0 rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 text-[#52615C] transition hover:bg-[#F1F7F4] hover:text-[#0F766E] lg:border-0 lg:bg-transparent" href="#overview">Overview</a>
+              <a className="shrink-0 rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 text-[#52615C] transition hover:bg-[#F1F7F4] hover:text-[#0F766E] lg:border-0 lg:bg-transparent" href="#integration-flow">Flow</a>
               <a className="shrink-0 rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 text-[#52615C] transition hover:bg-[#F1F7F4] hover:text-[#0F766E] lg:border-0 lg:bg-transparent" href="#schema">Schemas</a>
               <div className="hidden px-3 pb-1 pt-3 font-mono text-xs text-[#80908B] lg:block">Endpoints</div>
-              {apiDocsPageModel.endpoints.map((endpoint) => (
-                <a key={endpoint.key} className="shrink-0 rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 text-[#52615C] transition hover:bg-[#F1F7F4] hover:text-[#0F766E] lg:border-0 lg:bg-transparent" href={`#${endpoint.key}`}>
-                  <span className="mr-2 font-mono text-xs text-[#0F766E]">{endpoint.method}</span>
-                  {endpoint.path.replace('/api/license/', '')}
-                </a>
+              {apiDocsPageModel.endpointGroups.map((group) => (
+                <React.Fragment key={group.key}>
+                  <a className="shrink-0 rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 text-[#101413] transition hover:bg-[#F1F7F4] hover:text-[#0F766E] lg:border-0 lg:bg-transparent" href={`#${group.key}`}>
+                    {group.title}
+                  </a>
+                  {group.endpoints.map((endpoint) => (
+                    <a key={endpoint.key} className="shrink-0 rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 text-[#52615C] transition hover:bg-[#F1F7F4] hover:text-[#0F766E] lg:border-0 lg:bg-transparent lg:pl-6" href={`#${endpoint.key}`}>
+                      <span className="mr-2 font-mono text-xs text-[#0F766E]">{endpoint.method}</span>
+                      {endpoint.path.replace('/api/license/', '')}
+                    </a>
+                  ))}
+                </React.Fragment>
               ))}
               <a className="shrink-0 rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 text-[#52615C] transition hover:bg-[#F1F7F4] hover:text-[#0F766E] lg:border-0 lg:bg-transparent" href="#sdks">SDK examples</a>
               <a className="shrink-0 rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-2 text-[#52615C] transition hover:bg-[#F1F7F4] hover:text-[#0F766E] lg:border-0 lg:bg-transparent" href="#admin-api">Admin API</a>
@@ -263,6 +271,31 @@ export function ApiDocsWorkspace({
             </div>
           </section>
 
+          <section id="integration-flow" className="scroll-mt-24 rounded-lg border border-[#D8E5E0] bg-white p-5 shadow-[0_18px_54px_-48px_rgba(16,20,19,0.36)] sm:p-6">
+            <div className="font-mono text-xs font-semibold text-[#0F766E]">INTEGRATION FLOW</div>
+            <h2 className="mt-3 text-3xl font-semibold text-[#101413]">License v2 客户端接入流程</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#52615C]">
+              新版流程按客户端生命周期拆分：后台发码、本机生成密钥、首次 enroll、启动 status、业务 consume、过期前 renew。
+            </p>
+            <div className="mt-6 grid gap-4 xl:grid-cols-2">
+              {apiDocsPageModel.integrationFlowSteps.map((step) => (
+                <div key={step.step} className="rounded-lg border border-[#D8E5E0] bg-[#F8FBF9] p-5">
+                  <div className="font-mono text-xs font-semibold text-[#0F766E]">
+                    {step.step} / {step.phase}
+                  </div>
+                  <h3 className="mt-3 break-words text-lg font-semibold text-[#101413]">
+                    {step.endpoint}
+                  </h3>
+                  <div className="mt-4 space-y-3 text-sm leading-6 text-[#52615C]">
+                    <p><span className="font-semibold text-[#101413]">客户端：</span>{step.clientAction}</p>
+                    <p><span className="font-semibold text-[#101413]">服务端：</span>{step.serverAction}</p>
+                    <p><span className="font-semibold text-[#101413]">成功结果：</span>{step.successResult}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section id="schema" className="grid min-w-0 gap-5 xl:grid-cols-2">
             {fieldSections.map((section) => (
               <div key={section.id} className="min-w-0 rounded-lg border border-[#D8E5E0] bg-white p-5 shadow-[0_18px_54px_-48px_rgba(16,20,19,0.36)]">
@@ -293,8 +326,25 @@ export function ApiDocsWorkspace({
             ))}
           </section>
 
-          {apiDocsPageModel.endpoints.map((endpoint) => (
-            <section key={endpoint.key} id={endpoint.key} className="scroll-mt-24 rounded-lg border border-[#D8E5E0] bg-white p-5 shadow-[0_18px_54px_-48px_rgba(16,20,19,0.36)] sm:p-6">
+          {apiDocsPageModel.endpointGroups.map((group) => (
+            <React.Fragment key={group.key}>
+              <section id={group.key} className="scroll-mt-24 rounded-lg border border-[#D8E5E0] bg-white p-5 shadow-[0_18px_54px_-48px_rgba(16,20,19,0.36)] sm:p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <span className="inline-flex rounded-md border border-[#D8E5E0] bg-[#F8FBF9] px-3 py-1 font-mono text-xs font-semibold text-[#0F766E]">
+                      {group.badge}
+                    </span>
+                    <h2 className="mt-3 text-3xl font-semibold text-[#101413]">{group.title}</h2>
+                    <p className="mt-3 max-w-3xl text-sm leading-7 text-[#52615C]">{group.description}</p>
+                  </div>
+                  <div className="rounded-lg border border-[#D8E5E0] bg-[#F8FBF9] px-4 py-3 text-sm leading-6 text-[#52615C] lg:max-w-sm">
+                    <span className="font-semibold text-[#101413]">调用顺序：</span>
+                    {group.callOrder}
+                  </div>
+                </div>
+              </section>
+              {group.endpoints.map((endpoint) => (
+                <section key={endpoint.key} id={endpoint.key} className="scroll-mt-24 rounded-lg border border-[#D8E5E0] bg-white p-5 shadow-[0_18px_54px_-48px_rgba(16,20,19,0.36)] sm:p-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -339,7 +389,9 @@ export function ApiDocsWorkspace({
                   codeClassName={publicCodeBlockClassName}
                 />
               </div>
-            </section>
+                </section>
+              ))}
+            </React.Fragment>
           ))}
 
           <section id="sdks" className="space-y-5 scroll-mt-24">
@@ -399,7 +451,7 @@ export function ApiDocsWorkspace({
               </div>
               <div>
                 <div className="font-semibold text-[#101413]">Flow</div>
-                <div className="mt-2 text-[#52615C]">activate → status → consume</div>
+                <div className="mt-2 text-[#52615C]">enroll → status / consume → renew</div>
               </div>
             </div>
           </div>
@@ -574,6 +626,32 @@ export function ApiDocsWorkspace({
             </div>
           </div>
 
+          <div className={`${panelClassName} p-6`}>
+            <div className="mb-5">
+              <h3 className="text-xl font-semibold text-zinc-950">客户端调用明细</h3>
+              <p className="mt-1 text-sm leading-6 text-zinc-600">
+                这里按真实生命周期拆开：本机要保存什么、调用哪个接口、服务端校验什么、成功后得到什么。
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              {apiDocsPageModel.integrationFlowSteps.map((step) => (
+                <div key={step.step} className={featureCardClassName}>
+                  <div className="font-mono text-xs font-semibold text-emerald-700">
+                    {step.step} / {step.phase}
+                  </div>
+                  <h4 className="mt-3 text-base font-semibold text-zinc-950">
+                    {step.endpoint}
+                  </h4>
+                  <div className="mt-3 space-y-2 text-sm leading-6 text-zinc-600">
+                    <p><span className="font-medium text-zinc-950">客户端：</span>{step.clientAction}</p>
+                    <p><span className="font-medium text-zinc-950">服务端：</span>{step.serverAction}</p>
+                    <p><span className="font-medium text-zinc-950">结果：</span>{step.successResult}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
             {apiDocsPageModel.licenseModels.map((card) => (
               <div key={card.badge} className={`${panelClassName} p-6`}>
@@ -685,8 +763,29 @@ export function ApiDocsWorkspace({
 
       {activeTab === 'endpoints' && (
         <div className="space-y-6">
-          {apiDocsPageModel.endpoints.map((endpoint) => (
-            <div key={endpoint.key} className={`${panelClassName} p-6`}>
+          {apiDocsPageModel.endpointGroups.map((group) => (
+            <React.Fragment key={group.key}>
+              <div className={`${panelClassName} p-6`}>
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="max-w-3xl">
+                    <div className="inline-flex rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600">
+                      {group.badge}
+                    </div>
+                    <h3 className="mt-4 text-xl font-semibold text-zinc-950">
+                      {group.title}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-zinc-600">
+                      {group.description}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm leading-6 text-zinc-700 xl:max-w-sm">
+                    <span className="font-medium text-zinc-950">调用顺序：</span>{' '}
+                    {group.callOrder}
+                  </div>
+                </div>
+              </div>
+              {group.endpoints.map((endpoint) => (
+                <div key={endpoint.key} className={`${panelClassName} p-6`}>
               <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="max-w-3xl">
                   <div className="flex flex-wrap items-center gap-2">
@@ -796,7 +895,9 @@ export function ApiDocsWorkspace({
                   />
                 </div>
               </div>
-            </div>
+                </div>
+              ))}
+            </React.Fragment>
           ))}
         </div>
       )}

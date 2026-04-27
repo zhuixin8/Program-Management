@@ -46,8 +46,11 @@ export default function ApiDocsPage() {
             <a className="min-w-max" href="#quick-start">
               准备信息
             </a>
-            <a className="min-w-max" href="#v2-enroll">
-              License v2 接口
+            <a className="min-w-max" href="#license-v2">
+              新版 License v2
+            </a>
+            <a className="min-w-max" href="#license-v1">
+              旧版兼容接口
             </a>
             <a className="min-w-max" href="#sdk-examples">
               Python 示例

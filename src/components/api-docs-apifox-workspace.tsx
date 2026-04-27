@@ -221,9 +221,12 @@ export function ApiDocsApifoxWorkspace() {
     ['#auth-flow', '完整流程'],
     ['#request-fields', '请求参数'],
     ['#response-fields', '响应结构'],
-    ...apiDocsPageModel.endpoints.map((endpoint) => [
-      `#${endpoint.key}`,
-      endpoint.title,
+    ...apiDocsPageModel.endpointGroups.flatMap((group) => [
+      [`#${group.key}`, group.title],
+      ...group.endpoints.map((endpoint) => [
+        `#${endpoint.key}`,
+        endpoint.title,
+      ]),
     ]),
     ['#sdk-examples', '调用示例'],
     ['#admin-api', '后台接口'],
@@ -259,21 +262,30 @@ export function ApiDocsApifoxWorkspace() {
             </div>
             <div className="contents lg:block lg:min-w-0">
               <div className="hidden px-3 pb-2 text-xs font-semibold text-[#9CA3AF] lg:block">
-                License API
+                新版 / 旧版接口
               </div>
-              {apiDocsPageModel.endpoints.map((endpoint) => (
-                <a
-                  key={endpoint.key}
-                  className={sidebarEndpointLinkClassName}
-                  href={`#${endpoint.key}`}
-                >
-                  <span
-                    className={`rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold ${apiMethodBadgeClassNameMap[endpoint.method]}`}
-                  >
-                    {endpoint.method}
-                  </span>
-                  <span>{endpoint.title}</span>
-                </a>
+              {apiDocsPageModel.endpointGroups.map((group) => (
+                <div key={group.key} className="contents lg:block lg:pb-3">
+                  <a className={sidebarLinkClassName} href={`#${group.key}`}>
+                    {group.title}
+                  </a>
+                  <div className="contents lg:block lg:space-y-1 lg:pl-3">
+                    {group.endpoints.map((endpoint) => (
+                      <a
+                        key={endpoint.key}
+                        className={sidebarEndpointLinkClassName}
+                        href={`#${endpoint.key}`}
+                      >
+                        <span
+                          className={`rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold ${apiMethodBadgeClassNameMap[endpoint.method]}`}
+                        >
+                          {endpoint.method}
+                        </span>
+                        <span>{endpoint.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
             <div className="contents lg:block lg:min-w-0">
@@ -463,6 +475,58 @@ export function ApiDocsApifoxWorkspace() {
               </div>
             ))}
           </div>
+          <h3 className="mt-8 text-xl font-semibold text-[#111827]">
+            客户端调用明细
+          </h3>
+          <p className={docTextClassName}>
+            下面按真实客户端生命周期展开：哪些动作在本机完成、哪些接口要调用、服务端会校验什么、成功后客户端要保存什么。
+          </p>
+          <div className="mt-5 space-y-4">
+            {apiDocsPageModel.integrationFlowSteps.map((step) => (
+              <div
+                key={step.step}
+                className="rounded-lg border border-[#E5E7EB] bg-white p-5"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="font-mono text-xs font-semibold text-[#6B7280]">
+                      {step.step} / {step.phase}
+                    </div>
+                    <h4 className="mt-2 text-lg font-semibold text-[#111827]">
+                      {step.endpoint}
+                    </h4>
+                  </div>
+                  <span className="inline-flex w-fit rounded-md border border-[#D9EFE7] bg-[#F0FBF6] px-3 py-1 text-xs font-semibold text-[#047857]">
+                    License v2 flow
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                  <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-3 text-sm leading-6 text-[#4B5563]">
+                    <span className="font-semibold text-[#111827]">客户端：</span>
+                    {step.clientAction}
+                  </div>
+                  <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-3 text-sm leading-6 text-[#4B5563]">
+                    <span className="font-semibold text-[#111827]">服务端：</span>
+                    {step.serverAction}
+                  </div>
+                  <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] px-4 py-3 text-sm leading-6 text-[#4B5563]">
+                    <span className="font-semibold text-[#111827]">结果：</span>
+                    {step.successResult}
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {step.notes.map((note) => (
+                    <div
+                      key={note}
+                      className="rounded-lg border border-[#EEF1F4] bg-[#FBFCFD] px-4 py-3 text-sm leading-6 text-[#4B5563]"
+                    >
+                      {note}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section id="request-fields" className={docSectionClassName}>
@@ -483,12 +547,31 @@ export function ApiDocsApifoxWorkspace() {
           <FieldTable fields={apiDocsPageModel.responseFields} />
         </section>
 
-        {apiDocsPageModel.endpoints.map((endpoint) => (
-          <EndpointSection
-            key={endpoint.key}
-            endpoint={endpoint}
-            onCopy={copyToClipboard}
-          />
+        {apiDocsPageModel.endpointGroups.map((group) => (
+          <React.Fragment key={group.key}>
+            <section id={group.key} className={docSectionClassName}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <span className="inline-flex rounded-md border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-1 font-mono text-xs font-semibold text-[#4B5563]">
+                    {group.badge}
+                  </span>
+                  <h2 className={`${docTitleClassName} mt-4`}>{group.title}</h2>
+                  <p className={docTextClassName}>{group.description}</p>
+                </div>
+                <div className="rounded-lg border border-[#E5E7EB] bg-[#FBFCFD] px-4 py-3 text-sm leading-6 text-[#4B5563] lg:max-w-sm">
+                  <span className="font-semibold text-[#111827]">调用顺序：</span>
+                  {group.callOrder}
+                </div>
+              </div>
+            </section>
+            {group.endpoints.map((endpoint) => (
+              <EndpointSection
+                key={endpoint.key}
+                endpoint={endpoint}
+                onCopy={copyToClipboard}
+              />
+            ))}
+          </React.Fragment>
         ))}
 
         <section id="sdk-examples" className={docSectionClassName}>

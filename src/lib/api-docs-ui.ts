@@ -14,6 +14,16 @@ export type ApiResearchStep = {
   outcome: string
 }
 
+export type ApiIntegrationFlowStep = {
+  step: string
+  phase: string
+  clientAction: string
+  endpoint: string
+  serverAction: string
+  successResult: string
+  notes: string[]
+}
+
 export type ApiLicenseModelCard = {
   title: string
   badge: string
@@ -48,6 +58,15 @@ export type ApiEndpointDoc = {
   highlights: string[]
   requestExample: string
   responseExample: string
+}
+
+export type ApiEndpointGroup = {
+  key: 'license-v2' | 'license-v1'
+  title: string
+  badge: string
+  description: string
+  callOrder: string
+  endpoints: ApiEndpointDoc[]
 }
 
 export type ApiLanguageSnippet = {
@@ -580,6 +599,100 @@ X-License-Signature: base64url-ed25519-signature
     },
   ]
 
+  const integrationFlowSteps: ApiIntegrationFlowStep[] = [
+    {
+      step: '01',
+      phase: '后台准备',
+      clientAction: '客户端暂不接入，先由运营或管理员在后台创建 projectKey，并生成 TIME 或 COUNT 激活码。',
+      endpoint: '后台：/api/admin/projects + /api/admin/codes/generate',
+      serverAction: '服务端保存项目、授权模式、有效期或次数，并把激活码归属到指定项目。',
+      successResult: '拿到 Base URL、projectKey 和要发给用户的激活码。',
+      notes: [
+        'projectKey 可以内置在客户端；API Secret 不再放进 Python 程序。',
+        '不同产品、客户或渠道建议使用不同 projectKey 隔离。',
+      ],
+    },
+    {
+      step: '02',
+      phase: '本机初始化',
+      clientAction: '首次运行时生成稳定 machineId 和 Ed25519 设备密钥；以后必须复用同一份 machineId 和私钥。',
+      endpoint: '本地动作，无需请求服务端',
+      serverAction: '此阶段服务端没有参与，真正的公钥登记会在 enroll 完成。',
+      successResult: '客户端本地保存 machineId、设备私钥，并准备好 base64url Ed25519 公钥。',
+      notes: [
+        '正式客户端优先用 DPAPI、Keychain、Secret Service 或 keyring 保存私钥。',
+        'machineId 不能每次启动重新生成，否则会被识别成新设备。',
+      ],
+    },
+    {
+      step: '03',
+      phase: '首次激活',
+      clientAction: '用户输入激活码后，客户端用设备私钥签名 enroll canonical message，并提交激活码、machineId、公钥和签名。',
+      endpoint: 'POST /api/license/v2/enroll',
+      serverAction: '验证 Ed25519 签名、项目和激活码规则，绑定 machineId 与设备公钥，创建短期 session。',
+      successResult: '返回 licenseToken、sessionId、deviceId、expiresAt、licenseMode 和 remainingCount。',
+      notes: [
+        'enroll 成功后应保存 sessionId、licenseToken 和 expiresAt。',
+        '同一设备重新 enroll 会吊销旧 session，避免多份 token 长期并存。',
+      ],
+    },
+    {
+      step: '04',
+      phase: '启动检查',
+      clientAction: '程序启动或打开授权页时，带 Bearer token 和 X-License-* 签名头调用状态查询。',
+      endpoint: 'POST /api/license/v2/status',
+      serverAction: '校验 token、session、设备状态、客户端版本、时间戳、nonce、防重放和设备签名。',
+      successResult: '返回 valid、licenseMode、expiresAt、remainingCount、sessionId 和 tokenExpiresAt。',
+      notes: [
+        '状态查询不会扣减 COUNT 次数。',
+        '签名 bodyHash 必须对应实际发送的 JSON body 字节。',
+      ],
+    },
+    {
+      step: '05',
+      phase: '功能扣次',
+      clientAction: 'COUNT 次数卡在付费动作真正完成后调用 consume，并传入稳定 requestId；TIME 授权可用 consume 做权益校验。',
+      endpoint: 'POST /api/license/v2/consume',
+      serverAction: '先完成 v2 签名验证，再进入原有 TIME / COUNT 授权逻辑；COUNT 成功后扣减 remainingCount。',
+      successResult: '返回扣次后的 remainingCount、valid 和 idempotent。',
+      notes: [
+        '网络重试必须复用同一个 requestId，避免重复扣次。',
+        '建议业务成功后再扣次；失败或取消时不要调用 consume。',
+      ],
+    },
+    {
+      step: '06',
+      phase: '续租 token',
+      clientAction: 'token 快过期时先请求 challenge，再用设备私钥签名服务端返回的 signInput 调用 renew。',
+      endpoint: 'POST /api/license/v2/challenge -> POST /api/license/v2/renew',
+      serverAction: '校验一次性 challenge、设备签名和 session 状态，通过后递增 tokenVersion 并签发新 token。',
+      successResult: '返回新的 licenseToken 和 expiresAt；旧 token 立即失效。',
+      notes: [
+        'challenge 默认只能使用一次，过期或重放都会被拒绝。',
+        '建议在 expiresAt 前几分钟主动续租，失败时再提示用户重新联网验证。',
+      ],
+    },
+  ]
+
+  const endpointGroups: ApiEndpointGroup[] = [
+    {
+      key: 'license-v2',
+      title: '新版 License v2（推荐）',
+      badge: 'RECOMMENDED',
+      description: '给新的 Python 桌面程序和需要高强度防逆向的客户端使用。客户端不内置 API Secret，所有正式请求都绑定短期 token 和 Ed25519 设备签名。',
+      callOrder: 'enroll -> status / consume，token 快过期时 challenge -> renew',
+      endpoints: endpoints.filter((endpoint) => endpoint.audience === 'recommended'),
+    },
+    {
+      key: 'license-v1',
+      title: '旧版 v1 / verify（兼容）',
+      badge: 'LEGACY',
+      description: '仅保留给已发布的老客户端。旧版仍围绕 code + machineId 和 HMAC API Secret 兼容逻辑，新客户端不建议继续接入。',
+      callOrder: 'activate -> status -> consume；历史客户端可能仍使用 verify',
+      endpoints: endpoints.filter((endpoint) => endpoint.audience === 'compat'),
+    },
+  ]
+
   const signatureExample = String.raw`import base64
 import hashlib
 import json
@@ -816,10 +929,12 @@ await client.consume({
   return {
     summaryCards,
     researchSteps,
+    integrationFlowSteps,
     licenseModels,
     requestFields,
     responseFields,
     endpoints,
+    endpointGroups,
     signatureExample,
     languageSnippets,
     adminGroups,
