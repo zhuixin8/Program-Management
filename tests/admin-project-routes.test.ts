@@ -135,6 +135,11 @@ test('项目创建接口会标准化输入并返回创建结果', async (t) => {
       description: body.project.description,
       allowAutoRebind: body.project.allowAutoRebind,
       autoRebindCooldownMinutes: body.project.autoRebindCooldownMinutes,
+      hasOfflinePublicKey: typeof body.project.licenseV2OfflinePublicKey === 'string',
+      hasOfflinePrivateKey: Object.prototype.hasOwnProperty.call(
+        body.project,
+        'licenseV2OfflinePrivateKeyBase64',
+      ),
     },
     {
       success: true,
@@ -144,6 +149,8 @@ test('项目创建接口会标准化输入并返回创建结果', async (t) => {
       description: '项目描述',
       allowAutoRebind: true,
       autoRebindCooldownMinutes: 90,
+      hasOfflinePublicKey: true,
+      hasOfflinePrivateKey: false,
     },
   )
   assert.deepEqual(

@@ -385,7 +385,10 @@ function createLicenseV2OfflineLicenseFields(
     remainingCount,
     valid,
   })
-  const signedLicense = signLicenseV2OfflineLicense(payload)
+  const signedLicense = signLicenseV2OfflineLicense(payload, {
+    privateKeyBase64: session.device.project.licenseV2OfflinePrivateKeyBase64,
+    publicKey: session.device.project.licenseV2OfflinePublicKey,
+  })
   if (!signedLicense) {
     return {}
   }

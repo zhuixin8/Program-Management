@@ -10,12 +10,14 @@ type DashboardProjectManagementRowProps = {
     description?: string | null
     projectKey: string
     apiSecret?: string | null
+    licenseV2OfflinePublicKey?: string | null
     isEnabled: boolean
   }
   policySummary: string[]
   loading: boolean
   onCopyProjectKey: () => void
   onCopyApiSecret: () => void
+  onCopyOfflinePublicKey: () => void
   onEditBasics: () => void
   onEditRebind: () => void
   onToggleStatus: () => void
@@ -28,6 +30,7 @@ export function DashboardProjectManagementRow({
   loading,
   onCopyProjectKey,
   onCopyApiSecret,
+  onCopyOfflinePublicKey,
   onEditBasics,
   onEditRebind,
   onToggleStatus,
@@ -60,6 +63,14 @@ export function DashboardProjectManagementRow({
             <div className="text-[11px] font-semibold uppercase text-zinc-400">API Secret</div>
             <div className="mt-1 max-w-[260px] truncate font-mono text-xs text-zinc-600">
               {project.apiSecret || '未配置'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+            <div className="text-[11px] font-semibold uppercase text-emerald-500">
+              License v2 离线公钥
+            </div>
+            <div className="mt-1 max-w-[260px] truncate font-mono text-xs text-emerald-700">
+              {project.licenseV2OfflinePublicKey || '未生成'}
             </div>
           </div>
           <div className="text-xs leading-5 text-slate-400">
@@ -96,6 +107,12 @@ export function DashboardProjectManagementRow({
           </DashboardInlineActionButton>
           <DashboardInlineActionButton onClick={onCopyApiSecret} disabled={loading || !project.apiSecret}>
             复制 Secret
+          </DashboardInlineActionButton>
+          <DashboardInlineActionButton
+            onClick={onCopyOfflinePublicKey}
+            disabled={loading || !project.licenseV2OfflinePublicKey}
+          >
+            复制离线公钥
           </DashboardInlineActionButton>
           <DashboardInlineActionButton onClick={onEditBasics} disabled={loading}>
             编辑基础信息

@@ -3,6 +3,7 @@ import { Prisma, PrismaClient } from '@prisma/client'
 import { recordAdminOperationAuditLog } from './admin-operation-audit-service'
 import { DEFAULT_PROJECT_KEY, DEFAULT_PROJECT_NAME } from './dev-bootstrap'
 import { generateProjectApiSecret } from './project-api-secret'
+import { generateLicenseV2OfflineKeyPair } from './license-v2-offline-keypair'
 import {
   normalizeNullableBooleanOverride,
   normalizeNullableCooldownMinutesOverride,
@@ -11,6 +12,22 @@ import {
 import { normalizeProjectKeyForCreate } from './project-key'
 
 export type DbClient = PrismaClient | Prisma.TransactionClient
+
+const projectPublicSelect = {
+  id: true,
+  name: true,
+  projectKey: true,
+  apiSecret: true,
+  licenseV2OfflinePublicKey: true,
+  licenseV2OfflineKeyCreatedAt: true,
+  description: true,
+  isEnabled: true,
+  allowAutoRebind: true,
+  autoRebindCooldownMinutes: true,
+  autoRebindMaxCount: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProjectSelect
 
 type CreateProjectInput = {
   name: string
@@ -108,6 +125,7 @@ export async function findProjectByProjectKey(client: DbClient, projectKey?: str
 }
 
 export async function ensureDefaultProjectRecord(client: DbClient) {
+  const offlineKeyPair = generateLicenseV2OfflineKeyPair()
   return client.project.upsert({
     where: {
       projectKey: DEFAULT_PROJECT_KEY,
@@ -120,6 +138,9 @@ export async function ensureDefaultProjectRecord(client: DbClient) {
       name: DEFAULT_PROJECT_NAME,
       projectKey: DEFAULT_PROJECT_KEY,
       apiSecret: generateProjectApiSecret(),
+      licenseV2OfflinePrivateKeyBase64: offlineKeyPair.privateKeyBase64,
+      licenseV2OfflinePublicKey: offlineKeyPair.publicKey,
+      licenseV2OfflineKeyCreatedAt: new Date(),
       description: '系统兼容默认项目',
       isEnabled: true,
     },
@@ -128,6 +149,7 @@ export async function ensureDefaultProjectRecord(client: DbClient) {
 
 export async function listProjects(client: DbClient) {
   return client.project.findMany({
+    select: projectPublicSelect,
     orderBy: [{ isEnabled: 'desc' }, { createdAt: 'asc' }],
   })
 }
@@ -141,6 +163,7 @@ export async function createProject(client: DbClient, input: CreateProjectInput)
     input.autoRebindCooldownMinutes,
   )
   const autoRebindMaxCount = normalizeNullableMaxCountOverride(input.autoRebindMaxCount)
+  const offlineKeyPair = generateLicenseV2OfflineKeyPair()
 
   if (!name) {
     throw new Error('项目名称不能为空')
@@ -151,12 +174,16 @@ export async function createProject(client: DbClient, input: CreateProjectInput)
       name,
       projectKey,
       apiSecret: generateProjectApiSecret(),
+      licenseV2OfflinePrivateKeyBase64: offlineKeyPair.privateKeyBase64,
+      licenseV2OfflinePublicKey: offlineKeyPair.publicKey,
+      licenseV2OfflineKeyCreatedAt: new Date(),
       description,
       isEnabled: true,
       allowAutoRebind,
       autoRebindCooldownMinutes,
       autoRebindMaxCount,
     },
+    select: projectPublicSelect,
   })
 
   if (input.adminUsername) {
@@ -196,6 +223,7 @@ export async function updateProjectStatus(client: DbClient, input: UpdateProject
     data: {
       isEnabled: input.isEnabled,
     },
+    select: projectPublicSelect,
   })
 }
 
@@ -223,6 +251,7 @@ export async function updateProjectName(client: DbClient, input: UpdateProjectNa
     data: {
       name,
     },
+    select: projectPublicSelect,
   })
 }
 
@@ -240,6 +269,7 @@ export async function updateProjectDescription(client: DbClient, input: UpdatePr
     data: {
       description: input.description?.trim() || null,
     },
+    select: projectPublicSelect,
   })
 }
 
@@ -268,6 +298,7 @@ export async function updateProjectRebindSettings(
       autoRebindCooldownMinutes,
       autoRebindMaxCount,
     },
+    select: projectPublicSelect,
   })
 
   if (input.adminUsername) {
@@ -312,5 +343,6 @@ export async function deleteProject(client: DbClient, input: DeleteProjectInput)
     where: {
       id: project.id,
     },
+    select: projectPublicSelect,
   })
 }

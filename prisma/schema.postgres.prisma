@@ -12,6 +12,9 @@ model Project {
   name                         String
   projectKey                   String                         @unique
   apiSecret                    String?
+  licenseV2OfflinePrivateKeyBase64 String?
+  licenseV2OfflinePublicKey    String?
+  licenseV2OfflineKeyCreatedAt DateTime?
   description                  String?
   isEnabled                    Boolean                        @default(true)
   allowAutoRebind              Boolean?

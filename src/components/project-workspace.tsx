@@ -92,6 +92,7 @@ type ProjectWorkspaceManageView = {
   onProjectRebindMaxCountChange?: (projectId: number, value: string) => void
   onCopyProjectKey: (projectKey: string) => void
   onCopyApiSecret: (apiSecret: string) => void
+  onCopyOfflinePublicKey: (publicKey: string) => void
   onSaveProjectName: (project: ProjectManagementListItem) => Promise<void> | void
   onSaveProjectDescription: (project: ProjectManagementListItem) => Promise<void> | void
   onSaveProjectRebindSettings?: (project: ProjectManagementListItem) => Promise<void> | void
@@ -445,6 +446,9 @@ export function ProjectWorkspace({
               loading={loading}
               onCopyProjectKey={() => manageView.onCopyProjectKey(project.projectKey)}
               onCopyApiSecret={() => manageView.onCopyApiSecret(project.apiSecret || '')}
+              onCopyOfflinePublicKey={() =>
+                manageView.onCopyOfflinePublicKey(project.licenseV2OfflinePublicKey || '')
+              }
               onEditBasics={() => setEditingBasicsProjectId(project.id)}
               onEditRebind={() => setEditingRebindProjectId(project.id)}
               onToggleStatus={() => manageView.onToggleProjectStatus(project)}

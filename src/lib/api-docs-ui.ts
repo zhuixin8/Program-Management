@@ -93,7 +93,7 @@ export function buildApiDocsPageModel() {
     {
       label: '推荐接入',
       value: 'License v2',
-      description: 'Python 客户端不再内置 API Secret；本机生成 Ed25519 设备密钥，服务端只保存公钥。',
+      description: 'Python 客户端不再内置 API Secret；本机生成 Ed25519 设备密钥，后台项目会提供离线验签公钥。',
       tone: 'sky',
     },
     {
@@ -114,8 +114,8 @@ export function buildApiDocsPageModel() {
     {
       step: '01',
       title: '后台创建项目和激活码',
-      description: '在后台项目管理里创建项目，生成 TIME 或 COUNT 激活码。License v2 客户端只需要 Base URL、projectKey 和用户输入的激活码。',
-      outcome: 'API Secret 不再放进 Python 客户端；密钥信任边界留在服务端。',
+      description: '在后台项目管理里创建项目，生成 TIME 或 COUNT 激活码，并复制该项目的 License v2 离线公钥。',
+      outcome: 'API Secret 不再放进 Python 客户端；客户端固定 projectKey 和项目级 offline public key。',
     },
     {
       step: '02',
@@ -150,8 +150,8 @@ export function buildApiDocsPageModel() {
     {
       step: '07',
       title: '可选启用离线签名授权快照',
-      description: '配置 LICENSE_V2_OFFLINE_PRIVATE_KEY_PEM 或 LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64 后，v2 响应会返回 offlineLicense。',
-      outcome: '客户端可用服务端公钥在短暂断网时验证授权快照，适合弱网宽限和只读状态校验。',
+      description: '新建项目会自动生成项目级 Ed25519 离线签名密钥；老项目启动时会自动补齐。环境变量级密钥仅作为兼容兜底。',
+      outcome: '客户端用项目级公钥在短暂断网时验证授权快照，适合弱网宽限和只读状态校验。',
     },
   ]
 
@@ -320,7 +320,7 @@ export function buildApiDocsPageModel() {
       field: 'offlineLicense / offlineLicenseExpiresAt / offlineLicensePublicKey',
       type: 'string',
       required: 'v2 可选返回',
-      description: '服务端启用离线签名私钥后返回的短期授权快照。客户端用 Ed25519 公钥验证，适合弱网宽限和只读授权状态。',
+      description: '项目级私钥签发的短期授权快照。正式客户端应固定后台项目里的 offline public key，并校验 projectKey、machineId、有效期和授权状态。',
     },
   ]
 
@@ -337,7 +337,7 @@ export function buildApiDocsPageModel() {
         '客户端不需要也不应该内置项目 API Secret。',
         'deviceSignature 会证明客户端持有 devicePublicKey 对应私钥。',
         '成功后返回 licenseToken 和 sessionId，后续 status / consume 走签名请求。',
-        '服务端配置离线签名私钥后，会同时返回可本地验签的 offlineLicense。',
+        '项目级离线私钥会签发 offlineLicense，客户端用项目离线公钥验签。',
       ],
       requestExample: `{
   "projectKey": "browser-plugin",
@@ -401,7 +401,7 @@ export function buildApiDocsPageModel() {
         'challenge 只能使用一次，过期或重复提交会被拒绝。',
         '续租成功后 tokenVersion 会递增，旧 token 立即失效。',
         '被吊销设备或被封禁版本无法续租。',
-        '续租成功会刷新 offlineLicense，让弱网宽限状态保持最新。',
+        '续租成功会用项目级私钥刷新 offlineLicense，让弱网宽限状态保持最新。',
       ],
       requestExample: `{
   "sessionId": "ls_xxx",
@@ -702,11 +702,11 @@ X-License-Signature: base64url-ed25519-signature
       phase: '离线宽限',
       clientAction: '客户端保存服务端返回的 offlineLicense，并用内置 Ed25519 公钥验证签名、有效期、设备和授权信息。',
       endpoint: '响应字段：offlineLicense / offlineLicenseExpiresAt / offlineLicensePublicKey',
-      serverAction: '服务端用私钥签发短期授权快照；私钥只在服务端环境变量中保存，客户端只需要公钥。',
+      serverAction: '服务端优先用项目级私钥签发短期授权快照；客户端只需要后台项目里的离线公钥。',
       successResult: '短暂断网时可以读取可信授权状态；联网后仍应尽快恢复 status / consume 在线校验。',
       notes: [
         '离线 license 适合状态宽限，不适合离线可信扣减 COUNT 次数。',
-        '正式客户端建议内置固定公钥，不要完全依赖接口返回的 publicKey。',
+        '正式客户端建议内置或配置项目级固定公钥，不要完全依赖接口返回的 publicKey。',
       ],
     },
   ]
@@ -793,7 +793,7 @@ python examples/python/license_v2_client.py demo \
 # 1. enroll: 生成 Ed25519 设备密钥，提交公钥和私钥签名
 # 2. challenge + renew: 用设备私钥续租短期 licenseToken
 # 3. status / consume: 每次请求都签名 timestamp、nonce、bodyHash 和 tokenHash
-# 4. offline-status: 服务端启用离线签名后，可验证本地 offlineLicense 快照`,
+# 4. offline-status: 用后台项目里的离线公钥验证本地 offlineLicense 快照`,
     },
     {
       key: 'curl',
@@ -829,7 +829,7 @@ curl -X POST "https://mi.gxslgg.cn/api/license/v2/status" \
   -H "X-License-Signature: base64url-ed25519-signature" \
   -d '{}'
 
-# 响应可选包含 offlineLicense，客户端用 Ed25519 公钥验签后可做短期断网宽限。`,
+# 响应可选包含 offlineLicense，客户端用项目级 Ed25519 公钥验签后可做短期断网宽限。`,
     },
     {
       key: 'sdk',

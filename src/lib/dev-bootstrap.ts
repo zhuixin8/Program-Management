@@ -6,6 +6,7 @@ import path from 'node:path'
 
 import bcrypt from 'bcryptjs'
 
+import { generateLicenseV2OfflineKeyPair } from './license-v2-offline-keypair'
 import {
   buildDefaultSystemConfigs,
   defaultConfigValues,
@@ -164,6 +165,9 @@ function ensureProjectsTable(dbPath: string) {
         "name" TEXT NOT NULL,
         "projectKey" TEXT NOT NULL,
         "apiSecret" TEXT,
+        "licenseV2OfflinePrivateKeyBase64" TEXT,
+        "licenseV2OfflinePublicKey" TEXT,
+        "licenseV2OfflineKeyCreatedAt" DATETIME,
         "description" TEXT,
         "isEnabled" INTEGER NOT NULL DEFAULT 1,
         "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -174,6 +178,18 @@ function ensureProjectsTable(dbPath: string) {
       ON "projects"("projectKey");
     `,
   )
+
+  if (!columnExists(dbPath, 'projects', 'licenseV2OfflinePrivateKeyBase64')) {
+    runSqlite(dbPath, 'ALTER TABLE "projects" ADD COLUMN "licenseV2OfflinePrivateKeyBase64" TEXT;')
+  }
+
+  if (!columnExists(dbPath, 'projects', 'licenseV2OfflinePublicKey')) {
+    runSqlite(dbPath, 'ALTER TABLE "projects" ADD COLUMN "licenseV2OfflinePublicKey" TEXT;')
+  }
+
+  if (!columnExists(dbPath, 'projects', 'licenseV2OfflineKeyCreatedAt')) {
+    runSqlite(dbPath, 'ALTER TABLE "projects" ADD COLUMN "licenseV2OfflineKeyCreatedAt" DATETIME;')
+  }
 }
 
 function generateProjectApiSecret() {
@@ -192,6 +208,46 @@ function backfillProjectApiSecrets(dbPath: string) {
       `
         UPDATE "projects"
         SET "apiSecret" = '${escapeSqlString(generateProjectApiSecret())}'
+        WHERE "id" = ${Number(projectId)};
+      `,
+    )
+  })
+}
+
+function backfillProjectOfflineSigningKeys(dbPath: string) {
+  const hasPrivateKeyColumn = columnExists(
+    dbPath,
+    'projects',
+    'licenseV2OfflinePrivateKeyBase64',
+  )
+  const hasPublicKeyColumn = columnExists(dbPath, 'projects', 'licenseV2OfflinePublicKey')
+  const hasCreatedAtColumn = columnExists(dbPath, 'projects', 'licenseV2OfflineKeyCreatedAt')
+
+  if (!hasPrivateKeyColumn || !hasPublicKeyColumn || !hasCreatedAtColumn) {
+    return
+  }
+
+  const projectIds = queryLines(
+    dbPath,
+    `
+      SELECT "id"
+      FROM "projects"
+      WHERE "licenseV2OfflinePrivateKeyBase64" IS NULL
+         OR "licenseV2OfflinePrivateKeyBase64" = ''
+         OR "licenseV2OfflinePublicKey" IS NULL
+         OR "licenseV2OfflinePublicKey" = '';
+    `,
+  )
+
+  projectIds.forEach((projectId) => {
+    const keyPair = generateLicenseV2OfflineKeyPair()
+    runSqlite(
+      dbPath,
+      `
+        UPDATE "projects"
+        SET "licenseV2OfflinePrivateKeyBase64" = '${escapeSqlString(keyPair.privateKeyBase64)}',
+            "licenseV2OfflinePublicKey" = '${escapeSqlString(keyPair.publicKey)}',
+            "licenseV2OfflineKeyCreatedAt" = COALESCE("licenseV2OfflineKeyCreatedAt", CURRENT_TIMESTAMP)
         WHERE "id" = ${Number(projectId)};
       `,
     )
@@ -307,6 +363,7 @@ export function ensureSchema(dbPath: string = DEFAULT_DB_PATH) {
 
   pushPrismaSchema(dbPath)
   backfillProjectApiSecrets(dbPath)
+  backfillProjectOfflineSigningKeys(dbPath)
 
   const missingTables = REQUIRED_TABLES.filter((tableName) => !tableExists(dbPath, tableName))
   if (missingTables.length > 0) {
@@ -330,14 +387,29 @@ function ensureDefaultProjectRow(dbPath: string) {
     return existingProjectId
   }
 
+  const offlineKeyPair = generateLicenseV2OfflineKeyPair()
   runSqlite(
     dbPath,
     `
-      INSERT INTO "projects" ("name", "projectKey", "apiSecret", "description", "isEnabled", "createdAt", "updatedAt")
+      INSERT INTO "projects" (
+        "name",
+        "projectKey",
+        "apiSecret",
+        "licenseV2OfflinePrivateKeyBase64",
+        "licenseV2OfflinePublicKey",
+        "licenseV2OfflineKeyCreatedAt",
+        "description",
+        "isEnabled",
+        "createdAt",
+        "updatedAt"
+      )
       VALUES (
         '${escapeSqlString(DEFAULT_PROJECT_NAME)}',
         '${escapeSqlString(DEFAULT_PROJECT_KEY)}',
         '${escapeSqlString(generateProjectApiSecret())}',
+        '${escapeSqlString(offlineKeyPair.privateKeyBase64)}',
+        '${escapeSqlString(offlineKeyPair.publicKey)}',
+        CURRENT_TIMESTAMP,
         '系统兼容默认项目',
         1,
         CURRENT_TIMESTAMP,

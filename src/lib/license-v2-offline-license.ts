@@ -30,12 +30,36 @@ export type LicenseV2OfflineLicense = {
   publicKey: string
 }
 
+export type LicenseV2OfflineSigningKey = {
+  privateKeyPem?: string | null
+  privateKeyBase64?: string | null
+  publicKey?: string | null
+}
+
 function decodeBase64UrlJson<T>(value: string): T {
   return JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as T
 }
 
 function normalizePem(value: string) {
   return value.replace(/\\n/g, '\n')
+}
+
+function createOfflinePrivateKey(input?: LicenseV2OfflineSigningKey) {
+  const privateKeyPem = input?.privateKeyPem?.trim()
+  if (privateKeyPem) {
+    return crypto.createPrivateKey(normalizePem(privateKeyPem))
+  }
+
+  const privateKeyDerBase64 = input?.privateKeyBase64?.trim()
+  if (privateKeyDerBase64) {
+    return crypto.createPrivateKey({
+      key: Buffer.from(privateKeyDerBase64, 'base64'),
+      format: 'der',
+      type: 'pkcs8',
+    })
+  }
+
+  return null
 }
 
 function stableStringify(value: unknown): string {
@@ -53,19 +77,36 @@ function stableStringify(value: unknown): string {
     .join(',')}}`
 }
 
-function getOfflinePrivateKey() {
-  const privateKeyPem = process.env.LICENSE_V2_OFFLINE_PRIVATE_KEY_PEM?.trim()
-  if (privateKeyPem) {
-    return crypto.createPrivateKey(normalizePem(privateKeyPem))
+function getEnvOfflinePrivateKey() {
+  return createOfflinePrivateKey({
+    privateKeyPem: process.env.LICENSE_V2_OFFLINE_PRIVATE_KEY_PEM,
+    privateKeyBase64: process.env.LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64,
+  })
+}
+
+function deriveRawPublicKey(privateKey: crypto.KeyObject) {
+  const publicKeyDer = crypto
+    .createPublicKey(privateKey)
+    .export({ format: 'der', type: 'spki' }) as Buffer
+
+  return publicKeyDer.subarray(-32).toString('base64url')
+}
+
+function resolveOfflineSigningKey(input?: LicenseV2OfflineSigningKey) {
+  const projectPrivateKey = createOfflinePrivateKey(input)
+  if (projectPrivateKey) {
+    return {
+      privateKey: projectPrivateKey,
+      publicKey: input?.publicKey?.trim() || deriveRawPublicKey(projectPrivateKey),
+    }
   }
 
-  const privateKeyDerBase64 = process.env.LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64?.trim()
-  if (privateKeyDerBase64) {
-    return crypto.createPrivateKey({
-      key: Buffer.from(privateKeyDerBase64, 'base64'),
-      format: 'der',
-      type: 'pkcs8',
-    })
+  const envPrivateKey = getEnvOfflinePrivateKey()
+  if (envPrivateKey) {
+    return {
+      privateKey: envPrivateKey,
+      publicKey: process.env.LICENSE_V2_OFFLINE_PUBLIC_KEY?.trim() || deriveRawPublicKey(envPrivateKey),
+    }
   }
 
   return null
@@ -82,22 +123,8 @@ function createEd25519PublicKeyFromRaw(publicKey: string) {
   })
 }
 
-export function getLicenseV2OfflinePublicKey() {
-  const configuredPublicKey = process.env.LICENSE_V2_OFFLINE_PUBLIC_KEY?.trim()
-  if (configuredPublicKey) {
-    return configuredPublicKey
-  }
-
-  const privateKey = getOfflinePrivateKey()
-  if (!privateKey) {
-    return null
-  }
-
-  const publicKeyDer = crypto
-    .createPublicKey(privateKey)
-    .export({ format: 'der', type: 'spki' }) as Buffer
-
-  return publicKeyDer.subarray(-32).toString('base64url')
+export function getLicenseV2OfflinePublicKey(input?: LicenseV2OfflineSigningKey) {
+  return resolveOfflineSigningKey(input)?.publicKey ?? null
 }
 
 export function buildLicenseV2OfflineLicensePayload(
@@ -112,20 +139,22 @@ export function buildLicenseV2OfflineLicensePayload(
 
 export function signLicenseV2OfflineLicense(
   payload: LicenseV2OfflineLicensePayload,
+  signingKey?: LicenseV2OfflineSigningKey,
 ): LicenseV2OfflineLicense | null {
-  const privateKey = getOfflinePrivateKey()
-  const publicKey = getLicenseV2OfflinePublicKey()
-  if (!privateKey || !publicKey) {
+  const resolvedSigningKey = resolveOfflineSigningKey(signingKey)
+  if (!resolvedSigningKey) {
     return null
   }
 
   const payloadBase64 = Buffer.from(stableStringify(payload)).toString('base64url')
-  const signature = crypto.sign(null, Buffer.from(payloadBase64), privateKey).toString('base64url')
+  const signature = crypto
+    .sign(null, Buffer.from(payloadBase64), resolvedSigningKey.privateKey)
+    .toString('base64url')
 
   return {
     license: `${LICENSE_V2_OFFLINE_LICENSE_PREFIX}.${payloadBase64}.${signature}`,
     payload,
-    publicKey,
+    publicKey: resolvedSigningKey.publicKey,
   }
 }
 

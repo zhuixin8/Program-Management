@@ -69,6 +69,13 @@ test('bootstrapDevelopmentDatabase 会创建所需表和默认数据', async () 
   assert.equal(
     querySqlite(
       dbPath,
+      "SELECT COUNT(*) FROM projects WHERE licenseV2OfflinePrivateKeyBase64 IS NOT NULL AND licenseV2OfflinePublicKey IS NOT NULL;",
+    ),
+    '1',
+  )
+  assert.equal(
+    querySqlite(
+      dbPath,
       "SELECT \"notnull\" FROM pragma_table_info('activation_codes') WHERE name = 'projectId';",
     ),
     '1',
@@ -105,6 +112,13 @@ test('bootstrapDevelopmentDatabase 可重复执行且不会产生重复种子数
 
   assert.equal(querySqlite(dbPath, 'SELECT COUNT(*) FROM admins;'), '1')
   assert.equal(querySqlite(dbPath, 'SELECT COUNT(*) FROM projects;'), '1')
+  assert.equal(
+    querySqlite(
+      dbPath,
+      "SELECT COUNT(DISTINCT licenseV2OfflinePublicKey) FROM projects WHERE licenseV2OfflinePublicKey IS NOT NULL;",
+    ),
+    '1',
+  )
   assert.equal(
     querySqlite(dbPath, 'SELECT COUNT(*) FROM system_configs;'),
     String(defaultSystemConfigs.length),

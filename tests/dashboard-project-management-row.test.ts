@@ -14,6 +14,7 @@ test('DashboardProjectManagementRow 会渲染默认项目的只读字段、策�
         name: '默认项目',
         description: '系统默认项目',
         projectKey: 'default',
+        licenseV2OfflinePublicKey: 'default-offline-public-key',
         isEnabled: true,
       },
       policySummary: [
@@ -23,6 +24,8 @@ test('DashboardProjectManagementRow 会渲染默认项目的只读字段、策�
       ],
       loading: false,
       onCopyProjectKey: () => {},
+      onCopyApiSecret: () => {},
+      onCopyOfflinePublicKey: () => {},
       onEditBasics: () => {},
       onEditRebind: () => {},
       onToggleStatus: () => {},
@@ -38,6 +41,8 @@ test('DashboardProjectManagementRow 会渲染默认项目的只读字段、策�
   assert.match(html, /项目级换绑冷却时间：继承系统级策略/)
   assert.match(html, /项目级自助换绑次数上限：继承系统级策略/)
   assert.match(html, /复制标识/)
+  assert.match(html, /License v2 离线公钥/)
+  assert.match(html, /复制离线公钥/)
   assert.match(html, /编辑基础信息/)
   assert.match(html, /编辑换绑策略/)
   assert.match(html, /停用/)
@@ -53,6 +58,7 @@ test('DashboardProjectManagementRow 会渲染普通项目的策略摘要与完�
         name: '浏览器插件项目',
         description: '浏览器插件授权',
         projectKey: 'browser-plugin',
+        licenseV2OfflinePublicKey: 'browser-plugin-offline-public-key',
         isEnabled: false,
       },
       policySummary: [
@@ -62,6 +68,8 @@ test('DashboardProjectManagementRow 会渲染普通项目的策略摘要与完�
       ],
       loading: false,
       onCopyProjectKey: () => {},
+      onCopyApiSecret: () => {},
+      onCopyOfflinePublicKey: () => {},
       onEditBasics: () => {},
       onEditRebind: () => {},
       onToggleStatus: () => {},
@@ -72,6 +80,7 @@ test('DashboardProjectManagementRow 会渲染普通项目的策略摘要与完�
   assert.match(html, /浏览器插件项目/)
   assert.match(html, /浏览器插件授权/)
   assert.match(html, /browser-plugin/)
+  assert.match(html, /browser-plugin-offline-public-key/)
   assert.match(html, /用于 API 接入、发码隔离与筛选。/)
   assert.match(html, /项目级自助换绑策略：允许自助换绑/)
   assert.match(html, /项目级换绑冷却时间：3 小时/)

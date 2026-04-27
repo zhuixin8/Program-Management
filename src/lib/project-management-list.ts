@@ -3,6 +3,8 @@ export type ProjectManagementListItem = {
   name: string
   projectKey: string
   apiSecret?: string | null
+  licenseV2OfflinePublicKey?: string | null
+  licenseV2OfflineKeyCreatedAt?: string | null
   description: string | null
   isEnabled: boolean
   allowAutoRebind: boolean | null

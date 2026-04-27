@@ -31,7 +31,7 @@ python examples\python\license_v2_client.py status --base-url http://127.0.0.1:3
 python examples\python\license_v2_client.py consume --base-url http://127.0.0.1:3000 --project-key your-project-key --machine-id test-machine-001 --request-id order-10001
 ```
 
-如果服务端配置了 `LICENSE_V2_OFFLINE_PRIVATE_KEY_PEM` 或 `LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64`，`enroll`、`renew`、`status`、`consume` 响应会额外返回 `offlineLicense`。客户端可在短暂断网时用服务端公钥验证这个短期离线授权快照：
+后台创建项目时会自动生成项目级 License v2 离线公钥。`enroll`、`renew`、`status`、`consume` 响应会额外返回 `offlineLicense`，客户端可在短暂断网时用该项目公钥验证这个短期离线授权快照：
 
 ```powershell
 python examples\python\license_v2_client.py offline-status `
@@ -47,6 +47,6 @@ python examples\python\license_v2_client.py offline-status `
 2. `POST /api/license/v2/challenge`：客户端用 `sessionId` 和短期 token 请求一次性 challenge。
 3. `POST /api/license/v2/renew`：客户端用设备私钥签名 challenge，服务端验证后续租 session 并刷新 token。
 4. `POST /api/license/v2/status` 和 `POST /api/license/v2/consume`：每次请求都带短期 token，并用设备私钥签名方法、路径、session、时间戳、nonce、请求体 hash 和 token hash。
-5. 可选 `offlineLicense`：服务端私钥签发短期离线授权快照，客户端内置公钥验证。它适合弱网宽限和本地只读状态，不适合在离线状态下做可信的 COUNT 扣次。
+5. 可选 `offlineLicense`：服务端项目级私钥签发短期离线授权快照，客户端固定该项目公钥验证。它适合弱网宽限和本地只读状态，不适合在离线状态下做可信的 COUNT 扣次。
 
 这套方案的重点是把信任边界收回服务端：逆向者即使拿到 Python 代码，也拿不到项目 API Secret；复制 token 会被短 TTL、session 版本、设备公钥签名和 nonce 防重放限制住。

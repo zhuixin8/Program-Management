@@ -119,6 +119,8 @@ interface Project {
   name: string
   projectKey: string
   apiSecret?: string | null
+  licenseV2OfflinePublicKey?: string | null
+  licenseV2OfflineKeyCreatedAt?: string | null
   description: string | null
   isEnabled: boolean
   allowAutoRebind: boolean | null
@@ -1815,6 +1817,8 @@ export default function DashboardPage() {
     onProjectRebindMaxCountChange: handleProjectRebindMaxCountChange,
     onCopyProjectKey: (projectKey: string) => void copyToClipboard(projectKey, '项目标识已复制'),
     onCopyApiSecret: (apiSecret: string) => void copyToClipboard(apiSecret, 'API Secret 已复制'),
+    onCopyOfflinePublicKey: (publicKey: string) =>
+      void copyToClipboard(publicKey, 'License v2 离线公钥已复制'),
     onSaveProjectName: (project: Project) => void handleSaveProjectName(project),
     onSaveProjectDescription: (project: Project) => void handleSaveProjectDescription(project),
     onSaveProjectRebindSettings: (project: Project) => void handleSaveProjectRebindSettings(project),

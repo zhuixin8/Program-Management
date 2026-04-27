@@ -20,7 +20,7 @@
 - Next.js `15.5.15`，完整 `npm audit` 为 0 vulnerabilities。
 - License v2 客户端本机生成 Ed25519 设备密钥，服务端保存公钥，客户端不再内置项目 `apiSecret`。
 - License v2 请求校验短期 token、timestamp、nonce、body hash、token hash 和设备签名，防止复制 token 与重放。
-- 可选启用离线签名授权快照：服务端用 Ed25519 私钥签发 `offlineLicense`，客户端用公钥验证短期弱网宽限状态。
+- 项目创建时自动生成 License v2 离线签名 key pair；服务端用项目私钥签发 `offlineLicense`，客户端用项目公钥验证短期弱网宽限状态。
 - 旧版项目仍支持独立 `apiSecret` 和 HMAC-SHA256 请求签名，仅建议用于历史客户端兼容。
 - License API 默认按 `IP + projectKey + path` 每分钟限速 120 次。
 - 激活码生成使用 16 字节随机数，等价 128 bit 熵。
@@ -91,13 +91,15 @@ ALLOWED_IPS=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 docker compose up -d --build
 ```
 
-如需启用 License v2 离线签名授权快照，可生成一组 Ed25519 签名密钥：
+新建项目会自动生成 License v2 离线签名 key pair。后台项目列表只展示 `licenseV2OfflinePublicKey`，正式客户端应固定自己项目的公钥用于验签。
+
+如需给老部署提供全站兜底密钥，也可以手工生成一组 Ed25519 签名密钥：
 
 ```bash
 npx tsx scripts/generate-license-v2-offline-key.ts
 ```
 
-把输出的 `LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64` 放到服务端 `.env`；把 `LICENSE_V2_OFFLINE_PUBLIC_KEY` 固定到正式客户端用于验签。
+把输出的 `LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64` 放到服务端 `.env`；把 `LICENSE_V2_OFFLINE_PUBLIC_KEY` 固定到正式客户端用于验签。项目级密钥优先级高于这里的全站兜底密钥。
 
 或直接使用 Docker：
 
@@ -171,9 +173,9 @@ ALLOWED_IPS=*
 | `LICENSE_API_RATE_LIMIT_WINDOW_SECONDS` | `60` | License API 限速窗口秒数 |
 | `LICENSE_V2_SESSION_TTL_SECONDS` | `3600` | License v2 短期 token / session 有效期 |
 | `LICENSE_V2_OFFLINE_LICENSE_TTL_SECONDS` | `86400` | License v2 离线签名授权快照默认有效期 |
-| `LICENSE_V2_OFFLINE_PRIVATE_KEY_PEM` | 无 | 可选，Ed25519 PKCS8 PEM 私钥，启用 `offlineLicense` 签发 |
-| `LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64` | 无 | 可选，Ed25519 PKCS8 DER base64 私钥，适合 Docker 单行环境变量 |
-| `LICENSE_V2_OFFLINE_PUBLIC_KEY` | 自动从私钥推导 | 可选，base64url Ed25519 公钥；正式客户端建议内置固定公钥 |
+| `LICENSE_V2_OFFLINE_PRIVATE_KEY_PEM` | 无 | 可选，全站兜底 Ed25519 PKCS8 PEM 私钥；项目级私钥优先 |
+| `LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64` | 无 | 可选，全站兜底 Ed25519 PKCS8 DER base64 私钥，适合 Docker 单行环境变量 |
+| `LICENSE_V2_OFFLINE_PUBLIC_KEY` | 自动从私钥推导 | 可选，全站兜底 base64url Ed25519 公钥；正式客户端优先固定后台项目公钥 |
 | `NEXT_DIST_DIR` | `.next-build` | 构建输出目录，由启动脚本统一设置 |
 
 `.env`、数据库文件、构建产物和本地截图不会提交到 Git。
