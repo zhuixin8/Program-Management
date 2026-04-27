@@ -1,5 +1,32 @@
 # 更新日志
 
+## [2026-04-27] License v2 商业授权安全加固与线上部署
+
+### 项目级离线签名密钥
+- 新增项目级 License v2 Ed25519 离线签名 key pair，后台创建项目时自动生成。
+- 老项目在运行时初始化中自动补齐 `licenseV2OfflinePrivateKeyBase64`、`licenseV2OfflinePublicKey` 和 `licenseV2OfflineKeyCreatedAt`。
+- 后台项目列表展示项目级离线公钥，客户端应固定该公钥验签；项目私钥不通过接口返回。
+- 全站 `LICENSE_V2_OFFLINE_*` 环境变量保留为兼容兜底，项目级密钥优先。
+
+### 设备指纹漂移检测
+- License v2 新增 `fingerprintHash / fingerprint_hash` 字段。
+- `enroll` 可绑定设备指纹；`challenge`、`renew`、`status`、`consume` 会复核指纹。
+- 缺失或漂移会返回 403，并记录 `FINGERPRINT_HASH_MISSING` 或 `FINGERPRINT_DRIFT_DETECTED` 安全事件。
+- 对老设备支持首次后续请求补绑指纹，并记录 `FINGERPRINT_HASH_BOUND`。
+
+### 离线授权快照增强
+- `offlineLicense` payload 新增 `fingerprintHash`，客户端可在离线验签时复核设备身份。
+- Python License v2 示例支持 `--fingerprint-hash` 和 `LICENSE_V2_FINGERPRINT_HASH`。
+- API 文档补充设备指纹、项目级离线公钥、新旧版本接口分组与详细接入流程。
+
+### 依赖与部署
+- 修复 PostCSS npm audit advisory，生产依赖审计为 0 vulnerabilities。
+- Docker 构建支持 `NPM_CONFIG_REGISTRY` build arg，服务器构建时使用镜像源加速 npm 安装。
+- Docker 构建阶段关闭 npm audit / fund 请求，避免部署卡在 registry 请求上。
+- 已部署到服务器 Docker 容器 `activation-manager`，当前线上镜像为 `activation-manager:fingerprint-drift-264ded1`。
+
+详细进度见 `PROJECT_PROGRESS_2026-04-27.md`。
+
 ## [Unreleased] - 2026-03-27
 
 > 本节根据 `2026-03-24 ~ 2026-03-26` 的真实 `git log` 归档整理，覆盖提交范围：`64f1081..9f243cc`，并补充当前工作区尚未提交的后台术语统一、截图刷新与文档修订。
