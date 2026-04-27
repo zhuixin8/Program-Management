@@ -94,7 +94,7 @@ docker compose up -d --build
 如需启用 License v2 离线签名授权快照，可生成一组 Ed25519 签名密钥：
 
 ```bash
-npm run license:v2:offline-key
+npx tsx scripts/generate-license-v2-offline-key.ts
 ```
 
 把输出的 `LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64` 放到服务端 `.env`；把 `LICENSE_V2_OFFLINE_PUBLIC_KEY` 固定到正式客户端用于验签。

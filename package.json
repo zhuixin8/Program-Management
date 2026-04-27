@@ -28,7 +28,6 @@
     "db:backup": "./scripts/backup-db.sh",
     "db:backup-simple": "cp prisma/dev.db prisma/dev.db.backup_$(date +%Y%m%d_%H%M%S)",
     "db:backup-sql": "sqlite3 prisma/dev.db .dump > backup_$(date +%Y%m%d_%H%M%S).sql",
-    "license:v2:offline-key": "tsx scripts/generate-license-v2-offline-key.ts",
     "init-admin": "tsx scripts/init-admin.ts",
     "init-default-admin": "tsx scripts/init-default-admin.ts",
     "init-system-config": "tsx scripts/init-system-config.ts"
