@@ -12,11 +12,12 @@ import urllib.error
 import urllib.request
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 
 KEYRING_SERVICE = "activation-manager-license-v2"
@@ -74,6 +75,9 @@ class LicenseSession:
     licenseToken: str
     expiresAt: str | None = None
     deviceId: int | None = None
+    offlineLicense: str | None = None
+    offlineLicenseExpiresAt: str | None = None
+    offlineLicensePublicKey: str | None = None
 
 
 class DeviceKeyStore:
@@ -246,6 +250,17 @@ class LicenseV2Client:
             compact({"requestId": request_id or f"py_{uuid.uuid4().hex}"}),
         )
 
+    def offline_status(self, public_key: str | None = None) -> dict[str, Any]:
+        self._require_session()
+        assert self.session is not None
+        if not self.session.offlineLicense:
+            raise LicenseV2Error("No offlineLicense saved in the current session.")
+
+        return verify_offline_license(
+            self.session.offlineLicense,
+            public_key or self.session.offlineLicensePublicKey,
+        )
+
     def signed_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_session()
         assert self.session is not None
@@ -314,6 +329,9 @@ class LicenseV2Client:
             licenseToken=data["licenseToken"],
             expiresAt=data.get("expiresAt"),
             deviceId=data.get("deviceId"),
+            offlineLicense=data.get("offlineLicense"),
+            offlineLicenseExpiresAt=data.get("offlineLicenseExpiresAt"),
+            offlineLicensePublicKey=data.get("offlineLicensePublicKey"),
         )
 
     def _set_session_from_response(self, response: dict[str, Any]) -> None:
@@ -322,6 +340,9 @@ class LicenseV2Client:
             licenseToken=str(response["licenseToken"]),
             expiresAt=response.get("expiresAt"),
             deviceId=response.get("deviceId"),
+            offlineLicense=response.get("offlineLicense"),
+            offlineLicenseExpiresAt=response.get("offlineLicenseExpiresAt"),
+            offlineLicensePublicKey=response.get("offlineLicensePublicKey"),
         )
 
     def _require_session(self) -> None:
@@ -392,9 +413,47 @@ def print_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+def parse_iso8601_utc(value: str) -> float:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def verify_offline_license(offline_license: str, public_key: str | None) -> dict[str, Any]:
+    if not public_key:
+        raise LicenseV2Error("offline license public key is required.")
+
+    try:
+        prefix, payload_b64, signature_b64 = offline_license.split(".", 2)
+    except ValueError as error:
+        raise LicenseV2Error("offline license format is invalid.") from error
+
+    if prefix != "amlic2":
+        raise LicenseV2Error("offline license prefix is invalid.")
+
+    payload_bytes = base64.urlsafe_b64decode(payload_b64 + "=" * (-len(payload_b64) % 4))
+    signature = base64.urlsafe_b64decode(signature_b64 + "=" * (-len(signature_b64) % 4))
+    public_key_bytes = base64.urlsafe_b64decode(public_key + "=" * (-len(public_key) % 4))
+
+    try:
+        Ed25519PublicKey.from_public_bytes(public_key_bytes).verify(
+            signature,
+            payload_b64.encode("ascii"),
+        )
+    except Exception as error:
+        raise LicenseV2Error("offline license signature is invalid.") from error
+
+    payload = json.loads(payload_bytes.decode("utf-8"))
+    if payload.get("type") != "activation-manager.offline-license.v2":
+        raise LicenseV2Error("offline license payload type is invalid.")
+    if parse_iso8601_utc(str(payload["notBefore"])) > time.time():
+        raise LicenseV2Error("offline license is not active yet.")
+    if parse_iso8601_utc(str(payload["expiresAt"])) <= time.time():
+        raise LicenseV2Error("offline license has expired.")
+    return payload
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Activation Manager License v2 Python client.")
-    parser.add_argument("command", choices=["enroll", "renew", "status", "consume", "demo"])
+    parser.add_argument("command", choices=["enroll", "renew", "status", "consume", "offline-status", "demo"])
     parser.add_argument("--base-url", default=os.getenv("LICENSE_V2_BASE_URL", DEFAULT_BASE_URL))
     parser.add_argument("--project-key", default=os.getenv("LICENSE_V2_PROJECT_KEY", "default"))
     parser.add_argument("--code", default=os.getenv("LICENSE_V2_CODE"))
@@ -406,6 +465,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--state-file", default=os.getenv("LICENSE_V2_STATE_FILE"))
     parser.add_argument("--key-file", default=os.getenv("LICENSE_V2_KEY_FILE"))
     parser.add_argument("--request-id", default=os.getenv("LICENSE_V2_REQUEST_ID"))
+    parser.add_argument("--offline-public-key", default=os.getenv("LICENSE_V2_OFFLINE_PUBLIC_KEY"))
     parser.add_argument("--consume", action="store_true", help="Run consume during the demo command.")
     parser.add_argument("--no-keyring", action="store_true", help="Store the private key in a PEM file.")
     parser.add_argument("--timeout", type=float, default=10)
@@ -480,6 +540,10 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "consume":
             print_json(client.consume(args.request_id))
+            return 0
+
+        if args.command == "offline-status":
+            print_json(client.offline_status(args.offline_public_key))
             return 0
     except LicenseV2Error as error:
         print(f"License v2 error: {error}", file=sys.stderr)

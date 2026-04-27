@@ -71,8 +71,9 @@ test('ApiDocsWorkspace 在 public 模式下会渲染公开文档文案与默认�
   const html = renderToStaticMarkup(React.createElement(ApiDocsWorkspace, { mode: 'public' }))
 
   assert.equal(html.includes('桌面客户端接入总览'), true)
-  assert.equal(html.includes('3 个接口'), true)
-  assert.equal(html.includes('正式接入流程'), true)
+  assert.equal(html.includes('5 个接口'), true)
+  assert.equal(html.includes('License v2 客户端接入流程'), true)
+  assert.equal(html.includes('新版 License v2'), true)
   assert.equal(html.includes('Python 和调用示例'), true)
   assert.equal(html.includes('后台准备接口'), true)
   assert.equal(html.includes('bg-slate-900 text-white/90'), false)
@@ -90,5 +91,5 @@ test('ApiDocsWorkspace 在 dashboard 模式下会渲染后台语境文案', asyn
 
   assert.equal(html.includes('API 接入说明'), true)
   assert.equal(html.includes('Python 桌面程序接入说明'), true)
-  assert.equal(html.includes('不要把后台接口给客户端'), true)
+  assert.equal(html.includes('不要把 API Secret 放进客户端'), true)
 })

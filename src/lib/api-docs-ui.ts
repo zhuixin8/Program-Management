@@ -99,7 +99,7 @@ export function buildApiDocsPageModel() {
     {
       label: '高强度流程',
       value: '5 个接口',
-      description: 'enroll 绑定设备，challenge / renew 续租短期 token，status / consume 每次请求都签名。',
+      description: 'enroll 绑定设备，challenge / renew 续租短期 token，status / consume 每次请求都签名，可选返回离线签名快照。',
       tone: 'emerald',
     },
     {
@@ -146,6 +146,12 @@ export function buildApiDocsPageModel() {
       title: '在后台日志里排查问题',
       description: '遇到客户反馈时，用激活码、machineId、sessionId 或安全事件在后台查询。',
       outcome: '可以确认设备是否被吊销、客户端版本是否被封禁、是否发生签名失败或 nonce 重放。',
+    },
+    {
+      step: '07',
+      title: '可选启用离线签名授权快照',
+      description: '配置 LICENSE_V2_OFFLINE_PRIVATE_KEY_PEM 或 LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64 后，v2 响应会返回 offlineLicense。',
+      outcome: '客户端可用服务端公钥在短暂断网时验证授权快照，适合弱网宽限和只读状态校验。',
     },
   ]
 
@@ -310,6 +316,12 @@ export function buildApiDocsPageModel() {
       required: 'v2 challenge 返回',
       description: '服务端生成的一次性 challenge canonical message，客户端直接用设备私钥签名后提交 renew。',
     },
+    {
+      field: 'offlineLicense / offlineLicenseExpiresAt / offlineLicensePublicKey',
+      type: 'string',
+      required: 'v2 可选返回',
+      description: '服务端启用离线签名私钥后返回的短期授权快照。客户端用 Ed25519 公钥验证，适合弱网宽限和只读授权状态。',
+    },
   ]
 
   const endpoints: ApiEndpointDoc[] = [
@@ -325,6 +337,7 @@ export function buildApiDocsPageModel() {
         '客户端不需要也不应该内置项目 API Secret。',
         'deviceSignature 会证明客户端持有 devicePublicKey 对应私钥。',
         '成功后返回 licenseToken 和 sessionId，后续 status / consume 走签名请求。',
+        '服务端配置离线签名私钥后，会同时返回可本地验签的 offlineLicense。',
       ],
       requestExample: `{
   "projectKey": "browser-plugin",
@@ -343,7 +356,10 @@ export function buildApiDocsPageModel() {
   "expiresAt": "2026-04-27T13:30:00.000Z",
   "deviceId": 12,
   "licenseMode": "COUNT",
-  "remainingCount": 2
+  "remainingCount": 2,
+  "offlineLicense": "amlic2.payload.signature",
+  "offlineLicenseExpiresAt": "2026-04-28T13:30:00.000Z",
+  "offlineLicensePublicKey": "base64url-ed25519-public-key"
 }`,
     },
     {
@@ -385,6 +401,7 @@ export function buildApiDocsPageModel() {
         'challenge 只能使用一次，过期或重复提交会被拒绝。',
         '续租成功后 tokenVersion 会递增，旧 token 立即失效。',
         '被吊销设备或被封禁版本无法续租。',
+        '续租成功会刷新 offlineLicense，让弱网宽限状态保持最新。',
       ],
       requestExample: `{
   "sessionId": "ls_xxx",
@@ -401,7 +418,9 @@ export function buildApiDocsPageModel() {
   "expiresAt": "2026-04-27T14:30:00.000Z",
   "deviceId": 12,
   "licenseMode": "COUNT",
-  "remainingCount": 2
+  "remainingCount": 2,
+  "offlineLicense": "amlic2.payload.signature",
+  "offlineLicenseExpiresAt": "2026-04-28T14:30:00.000Z"
 }`,
     },
     {
@@ -416,6 +435,7 @@ export function buildApiDocsPageModel() {
         '请求头必须带 X-License-Timestamp、X-License-Nonce、X-License-Signature。',
         '签名会绑定方法、路径、session、请求体 hash 和 token hash。',
         'nonce 只能使用一次，服务端会拒绝重放请求。',
+        '在线 status 成功后可更新本地 offlineLicense。',
       ],
       requestExample: `POST /api/license/v2/status
 Authorization: Bearer eyJ...
@@ -434,7 +454,9 @@ X-License-Signature: base64url-ed25519-signature
   "valid": true,
   "sessionId": "ls_xxx",
   "deviceId": 12,
-  "tokenExpiresAt": "2026-04-27T14:30:00.000Z"
+  "tokenExpiresAt": "2026-04-27T14:30:00.000Z",
+  "offlineLicense": "amlic2.payload.signature",
+  "offlineLicenseExpiresAt": "2026-04-28T14:30:00.000Z"
 }`,
     },
     {
@@ -449,6 +471,7 @@ X-License-Signature: base64url-ed25519-signature
         '请求签名规则与 v2 status 相同。',
         'COUNT 每次成功 consume 扣 1 次，requestId 支持幂等。',
         '同一个 requestId 重试不会重复扣次。',
+        '离线 license 可缓存最新 remainingCount，但离线状态下不要做可信扣次。',
       ],
       requestExample: `POST /api/license/v2/consume
 Authorization: Bearer eyJ...
@@ -470,7 +493,9 @@ X-License-Signature: base64url-ed25519-signature
   "idempotent": false,
   "sessionId": "ls_xxx",
   "deviceId": 12,
-  "tokenExpiresAt": "2026-04-27T14:30:00.000Z"
+  "tokenExpiresAt": "2026-04-27T14:30:00.000Z",
+  "offlineLicense": "amlic2.payload.signature",
+  "offlineLicenseExpiresAt": "2026-04-28T14:30:00.000Z"
 }`,
     },
     {
@@ -672,6 +697,18 @@ X-License-Signature: base64url-ed25519-signature
         '建议在 expiresAt 前几分钟主动续租，失败时再提示用户重新联网验证。',
       ],
     },
+    {
+      step: '07',
+      phase: '离线宽限',
+      clientAction: '客户端保存服务端返回的 offlineLicense，并用内置 Ed25519 公钥验证签名、有效期、设备和授权信息。',
+      endpoint: '响应字段：offlineLicense / offlineLicenseExpiresAt / offlineLicensePublicKey',
+      serverAction: '服务端用私钥签发短期授权快照；私钥只在服务端环境变量中保存，客户端只需要公钥。',
+      successResult: '短暂断网时可以读取可信授权状态；联网后仍应尽快恢复 status / consume 在线校验。',
+      notes: [
+        '离线 license 适合状态宽限，不适合离线可信扣减 COUNT 次数。',
+        '正式客户端建议内置固定公钥，不要完全依赖接口返回的 publicKey。',
+      ],
+    },
   ]
 
   const endpointGroups: ApiEndpointGroup[] = [
@@ -755,7 +792,8 @@ python examples/python/license_v2_client.py demo \
 # 真实流程：
 # 1. enroll: 生成 Ed25519 设备密钥，提交公钥和私钥签名
 # 2. challenge + renew: 用设备私钥续租短期 licenseToken
-# 3. status / consume: 每次请求都签名 timestamp、nonce、bodyHash 和 tokenHash`,
+# 3. status / consume: 每次请求都签名 timestamp、nonce、bodyHash 和 tokenHash
+# 4. offline-status: 服务端启用离线签名后，可验证本地 offlineLicense 快照`,
     },
     {
       key: 'curl',
@@ -789,7 +827,9 @@ curl -X POST "https://mi.gxslgg.cn/api/license/v2/status" \
   -H "X-License-Timestamp: 1777280000" \
   -H "X-License-Nonce: py_xxx" \
   -H "X-License-Signature: base64url-ed25519-signature" \
-  -d '{}'`,
+  -d '{}'
+
+# 响应可选包含 offlineLicense，客户端用 Ed25519 公钥验签后可做短期断网宽限。`,
     },
     {
       key: 'sdk',

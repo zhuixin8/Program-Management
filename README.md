@@ -9,7 +9,7 @@
 - 项目管理：为不同产品、插件或客户创建独立 `projectKey`，隔离激活码、消费日志和统计数据。
 - 激活码管理：支持 TIME 有效期授权和 COUNT 次数授权，批量生成、查询、绑定、释放和清理。
 - 设备绑定：激活码首次使用时绑定 `machineId`，后续请求按项目和设备校验。
-- 授权接口：提供 `/api/license/activate`、`/api/license/status`、`/api/license/consume` 和旧版 `/api/verify`。
+- 授权接口：推荐使用 License v2 的 `/api/license/v2/enroll`、`/challenge`、`/renew`、`/status`、`/consume`；旧版 `/api/license/*` 和 `/api/verify` 仅保留兼容。
 - 幂等扣次：`consume` 支持 `requestId`，网络重试不会重复扣减次数。
 - 管理后台：包含数据统计、项目管理、激活码列表、消费日志、审计日志、系统配置和修改密码。
 - API 文档中心：Apifox 风格 REST API 页面，包含字段、响应、SDK、Python、cURL 和签名示例。
@@ -18,8 +18,10 @@
 ## 安全能力
 
 - Next.js `15.5.15`，完整 `npm audit` 为 0 vulnerabilities。
-- 每个项目拥有独立 `apiSecret`，License API 使用 HMAC-SHA256 请求签名。
-- 签名请求校验 timestamp、nonce 和 body hash，防止重放。
+- License v2 客户端本机生成 Ed25519 设备密钥，服务端保存公钥，客户端不再内置项目 `apiSecret`。
+- License v2 请求校验短期 token、timestamp、nonce、body hash、token hash 和设备签名，防止复制 token 与重放。
+- 可选启用离线签名授权快照：服务端用 Ed25519 私钥签发 `offlineLicense`，客户端用公钥验证短期弱网宽限状态。
+- 旧版项目仍支持独立 `apiSecret` 和 HMAC-SHA256 请求签名，仅建议用于历史客户端兼容。
 - License API 默认按 `IP + projectKey + path` 每分钟限速 120 次。
 - 激活码生成使用 16 字节随机数，等价 128 bit 熵。
 - 管理员修改密码后递增 `tokenVersion`，旧 JWT 自动失效。
@@ -88,6 +90,14 @@ ALLOWED_IPS=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 ```bash
 docker compose up -d --build
 ```
+
+如需启用 License v2 离线签名授权快照，可生成一组 Ed25519 签名密钥：
+
+```bash
+npm run license:v2:offline-key
+```
+
+把输出的 `LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64` 放到服务端 `.env`；把 `LICENSE_V2_OFFLINE_PUBLIC_KEY` 固定到正式客户端用于验签。
 
 或直接使用 Docker：
 
@@ -159,6 +169,11 @@ ALLOWED_IPS=*
 | `ALLOWED_IPS` | `127.0.0.1,::1` | 管理后台访问白名单，支持 CIDR 和 `*` |
 | `LICENSE_API_RATE_LIMIT_MAX` | `120` | License API 单窗口最大请求数 |
 | `LICENSE_API_RATE_LIMIT_WINDOW_SECONDS` | `60` | License API 限速窗口秒数 |
+| `LICENSE_V2_SESSION_TTL_SECONDS` | `3600` | License v2 短期 token / session 有效期 |
+| `LICENSE_V2_OFFLINE_LICENSE_TTL_SECONDS` | `86400` | License v2 离线签名授权快照默认有效期 |
+| `LICENSE_V2_OFFLINE_PRIVATE_KEY_PEM` | 无 | 可选，Ed25519 PKCS8 PEM 私钥，启用 `offlineLicense` 签发 |
+| `LICENSE_V2_OFFLINE_PRIVATE_KEY_BASE64` | 无 | 可选，Ed25519 PKCS8 DER base64 私钥，适合 Docker 单行环境变量 |
+| `LICENSE_V2_OFFLINE_PUBLIC_KEY` | 自动从私钥推导 | 可选，base64url Ed25519 公钥；正式客户端建议内置固定公钥 |
 | `NEXT_DIST_DIR` | `.next-build` | 构建输出目录，由启动脚本统一设置 |
 
 `.env`、数据库文件、构建产物和本地截图不会提交到 Git。
@@ -211,13 +226,23 @@ const signature = crypto.createHmac('sha256', apiSecret).update(canonicalInput).
 
 ## REST API
 
-推荐流程：
+新客户端推荐流程：
 
 ```text
-activate -> status -> consume
+enroll -> status / consume，token 快过期时 challenge -> renew
 ```
 
-核心接口：
+License v2 核心接口：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/license/v2/enroll` | 首次激活并登记设备公钥 |
+| `POST` | `/api/license/v2/challenge` | 创建一次性续租 challenge |
+| `POST` | `/api/license/v2/renew` | 用设备私钥签名 challenge 后续租 token |
+| `POST` | `/api/license/v2/status` | 签名查询授权状态 |
+| `POST` | `/api/license/v2/consume` | 签名扣次或校验权益 |
+
+旧版兼容接口：
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |

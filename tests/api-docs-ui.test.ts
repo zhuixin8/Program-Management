@@ -49,6 +49,14 @@ test('buildApiDocsPageModel 会强调 Python 桌面接入、设备绑定与 cons
     true,
   )
   assert.equal(
+    model.integrationFlowSteps.some((step) => step.endpoint.includes('offlineLicense')),
+    true,
+  )
+  assert.equal(
+    model.responseFields.some((field) => field.field.includes('offlineLicense')),
+    true,
+  )
+  assert.equal(
     model.licenseModels.some((modelCard) => modelCard.badge === 'DEVICE'),
     true,
   )

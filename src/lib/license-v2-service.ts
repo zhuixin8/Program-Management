@@ -16,6 +16,11 @@ import {
   verifyEd25519Signature,
 } from './license-v2-crypto'
 import {
+  buildLicenseV2OfflineLicensePayload,
+  signLicenseV2OfflineLicense,
+  type LicenseV2OfflineLicensePayload,
+} from './license-v2-offline-license'
+import {
   signLicenseV2SessionToken,
   verifyLicenseV2SessionToken,
   type LicenseV2TokenPayload,
@@ -83,6 +88,7 @@ const DEFAULT_SESSION_TTL_SECONDS = 60 * 60
 const DEFAULT_CHALLENGE_TTL_SECONDS = 5 * 60
 const DEFAULT_PROOF_NONCE_TTL_SECONDS = 10 * 60
 const DEFAULT_PROOF_MAX_SKEW_SECONDS = 5 * 60
+const DEFAULT_OFFLINE_LICENSE_TTL_SECONDS = 24 * 60 * 60
 const DEFAULT_CHALLENGE_CLEANUP_RETENTION_SECONDS = 24 * 60 * 60
 const DEFAULT_CHALLENGE_CLEANUP_SAMPLE_RATE = 0.01
 
@@ -127,6 +133,13 @@ function getLicenseV2ProofMaxSkewSeconds() {
   return normalizePositiveInteger(
     process.env.LICENSE_V2_PROOF_MAX_SKEW_SECONDS,
     DEFAULT_PROOF_MAX_SKEW_SECONDS,
+  )
+}
+
+function getLicenseV2OfflineLicenseTtlSeconds() {
+  return normalizePositiveInteger(
+    process.env.LICENSE_V2_OFFLINE_LICENSE_TTL_SECONDS,
+    DEFAULT_OFFLINE_LICENSE_TTL_SECONDS,
   )
 }
 
@@ -280,6 +293,7 @@ function buildSessionTokenInput(session: LicenseV2SessionRecord) {
 
 async function createSessionSuccessPayload(session: LicenseV2SessionRecord, message: string) {
   const licenseToken = await signLicenseV2SessionToken(buildSessionTokenInput(session))
+  const offlineLicense = createLicenseV2OfflineLicenseFields(session)
 
   return {
     success: true,
@@ -292,6 +306,94 @@ async function createSessionSuccessPayload(session: LicenseV2SessionRecord, mess
     deviceId: session.device.id,
     licenseMode: session.device.activationCode.licenseMode,
     remainingCount: getRemainingCount(session.device.activationCode),
+    ...offlineLicense,
+  }
+}
+
+function minDate(...dates: Array<Date | null | undefined>) {
+  const filteredDates = dates.filter((date): date is Date => Boolean(date))
+  if (filteredDates.length === 0) {
+    return null
+  }
+
+  return new Date(Math.min(...filteredDates.map((date) => date.getTime())))
+}
+
+function readResultBoolean(value: unknown, fallback: boolean) {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function readResultNumber(value: unknown, fallback: number | null) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function readResultDate(value: unknown, fallback: Date | null) {
+  if (value instanceof Date) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const date = new Date(value)
+    return Number.isFinite(date.getTime()) ? date : fallback
+  }
+
+  return fallback
+}
+
+function createLicenseV2OfflineLicenseFields(
+  session: LicenseV2SessionRecord,
+  result?: Record<string, unknown>,
+) {
+  const now = new Date()
+  const offlineExpiresAt = minDate(
+    new Date(now.getTime() + getLicenseV2OfflineLicenseTtlSeconds() * 1000),
+    session.device.activationCode.licenseMode === 'TIME'
+      ? readResultDate(
+          result?.expiresAt ?? result?.expires_at,
+          session.device.activationCode.expiresAt,
+        )
+      : null,
+  )
+
+  if (!offlineExpiresAt) {
+    return {}
+  }
+
+  const remainingCount = readResultNumber(
+    result?.remainingCount ?? result?.remaining_count,
+    getRemainingCount(session.device.activationCode),
+  )
+  const valid = result?.success === false ? false : readResultBoolean(result?.valid, true)
+  const payload: LicenseV2OfflineLicensePayload = buildLicenseV2OfflineLicensePayload({
+    issuedAt: now.toISOString(),
+    notBefore: now.toISOString(),
+    expiresAt: offlineExpiresAt.toISOString(),
+    projectKey: session.device.project.projectKey,
+    activationCodeId: session.device.activationCodeId,
+    deviceId: session.device.id,
+    sessionId: session.sessionId,
+    machineId: session.device.machineId,
+    publicKeyFingerprint: session.device.publicKeyFingerprint,
+    appVersion: session.device.appVersion,
+    tokenVersion: session.tokenVersion,
+    licenseMode: session.device.activationCode.licenseMode,
+    licenseExpiresAt:
+      readResultDate(
+        result?.expiresAt ?? result?.expires_at,
+        session.device.activationCode.expiresAt,
+      )?.toISOString() ?? null,
+    remainingCount,
+    valid,
+  })
+  const signedLicense = signLicenseV2OfflineLicense(payload)
+  if (!signedLicense) {
+    return {}
+  }
+
+  return {
+    offlineLicense: signedLicense.license,
+    offlineLicenseExpiresAt: signedLicense.payload.expiresAt,
+    offlineLicensePublicKey: signedLicense.publicKey,
   }
 }
 
@@ -946,6 +1048,7 @@ export async function getLicenseV2Status(
     sessionId: session.sessionId,
     deviceId: session.device.id,
     tokenExpiresAt: session.expiresAt,
+    ...createLicenseV2OfflineLicenseFields(session, result),
   }
 }
 
@@ -967,5 +1070,6 @@ export async function consumeLicenseV2(
     sessionId: session.sessionId,
     deviceId: session.device.id,
     tokenExpiresAt: session.expiresAt,
+    ...createLicenseV2OfflineLicenseFields(session, result),
   }
 }
